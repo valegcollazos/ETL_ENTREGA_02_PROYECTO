@@ -1,0 +1,106 @@
+# Airflow 2.x (LocalExecutor) + Postgres (metadatos de Airflow) + MySQL (datos del proyecto).
+# Arranque:  docker compose up -d --build     ·   Interfaz: http://localhost:8080
+x-airflow-common: &airflow-common
+  build: .
+  env_file: .env
+  environment: &airflow-env
+    AIRFLOW__CORE__EXECUTOR: LocalExecutor
+    AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@postgres/airflow
+    AIRFLOW__CORE__LOAD_EXAMPLES: "false"
+    AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: "true"
+    AIRFLOW__WEBSERVER__EXPOSE_CONFIG: "false"
+    PYTHONPATH: /opt/airflow
+    # Dentro de la red de Docker, MySQL se llama "mysql" y usa el puerto 3306
+    MYSQL_HOST: mysql
+    MYSQL_PORT: "3306"
+    STAGING_DIR: /opt/airflow/data/staging
+    CSV_2019_PATH: /opt/airflow/data/input/saber11_2019.csv
+  volumes:
+    - ./dags:/opt/airflow/dags
+    - ./etl:/opt/airflow/etl
+    - ./data:/opt/airflow/data
+    - ./dashboards:/opt/airflow/dashboards
+    - ./logs:/opt/airflow/logs
+  user: "${AIRFLOW_UID:-50000}:0"
+  depends_on: &airflow-depends
+    postgres:
+      condition: service_healthy
+    mysql:
+      condition: service_healthy
+
+services:
+  postgres:
+    image: postgres:13
+    environment:
+      POSTGRES_USER: airflow
+      POSTGRES_PASSWORD: airflow
+      POSTGRES_DB: airflow
+    volumes:
+      - postgres-db:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "airflow"]
+      interval: 10s
+      retries: 5
+    restart: always
+
+  mysql:
+    image: mysql:8.0
+    env_file: .env
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      MYSQL_USER: ${MYSQL_USER}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+      MYSQL_DATABASE: ${RAW_DB_NAME}
+    ports:
+      - "3307:3306"   # 3307 en tu computador para no chocar con tu MySQL local
+    volumes:
+      - mysql-data:/var/lib/mysql
+      - ./sql/init:/docker-entrypoint-initdb.d:ro
+      - ./sql:/sql:ro
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-p${MYSQL_ROOT_PASSWORD}"]
+      interval: 10s
+      retries: 10
+    restart: always
+
+  airflow-init:
+    <<: *airflow-common
+    entrypoint: /bin/bash
+    command:
+      - -c
+      - |
+        mkdir -p /opt/airflow/logs /opt/airflow/data/staging
+        chown -R "${AIRFLOW_UID:-50000}:0" /opt/airflow/logs /opt/airflow/data
+        exec /entrypoint airflow version
+    environment:
+      <<: *airflow-env
+      _AIRFLOW_DB_MIGRATE: "true"
+      _AIRFLOW_WWW_USER_CREATE: "true"
+      _AIRFLOW_WWW_USER_USERNAME: ${AIRFLOW_ADMIN_USER:-admin}
+      _AIRFLOW_WWW_USER_PASSWORD: ${AIRFLOW_ADMIN_PASSWORD:-admin}
+    user: "0:0"
+    restart: "no"
+
+  airflow-webserver:
+    <<: *airflow-common
+    command: webserver
+    ports:
+      - "8080:8080"
+    depends_on:
+      <<: *airflow-depends
+      airflow-init:
+        condition: service_completed_successfully
+    restart: always
+
+  airflow-scheduler:
+    <<: *airflow-common
+    command: scheduler
+    depends_on:
+      <<: *airflow-depends
+      airflow-init:
+        condition: service_completed_successfully
+    restart: always
+
+volumes:
+  postgres-db:
+  mysql-data:

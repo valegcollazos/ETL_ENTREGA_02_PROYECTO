@@ -1,0 +1,14 @@
+# Para correr las funciones y el notebook FUERA de Airflow (en tu computador).
+pandas>=2.1,<3
+pyarrow
+ftfy
+sqlalchemy>=1.4
+pymysql
+python-dotenv
+requests
+polars
+connectorx
+jupyter
+matplotlib
+seaborn
+pytest

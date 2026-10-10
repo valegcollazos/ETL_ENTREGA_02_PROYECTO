@@ -1,0 +1,32 @@
+# Credenciales
+.env
+
+# Datos (nada de CSV ni parquet, salvo la muestra de referencia)
+data/**
+!data/**/
+!data/input/.gitkeep
+!data/staging/.gitkeep
+*.csv
+*.parquet
+*.sql.gz
+dumps/
+!docs/muestra_referencia.parquet
+
+# Logs y resultados locales
+logs/
+*.log
+gx/uncommitted/
+
+# Python / Jupyter
+__pycache__/
+*.pyc
+.venv/
+venv/
+.ipynb_checkpoints/
+.pytest_cache/
+
+# Sistema / editores
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

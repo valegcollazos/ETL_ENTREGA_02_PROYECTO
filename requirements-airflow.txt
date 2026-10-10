@@ -1,0 +1,7 @@
+# Librerías extra DENTRO del contenedor de Airflow (pandas y sqlalchemy ya vienen en la imagen).
+ftfy
+pymysql
+pyarrow
+requests
+# Lauren: agregar aquí great_expectations con la versión que pruebe que instala bien
+# great_expectations==
