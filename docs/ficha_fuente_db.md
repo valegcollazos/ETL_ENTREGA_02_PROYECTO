@@ -1,4 +1,4 @@
-# Ficha de la fuente — Base SQL 2025 (rama DB, Valeria)
+# Ficha de la fuente — Base SQL 2025 (rama DB)
 
 | Campo | Valor |
 |---|---|
