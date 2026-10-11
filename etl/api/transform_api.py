@@ -18,6 +18,9 @@ log = logging.getLogger(__name__)
 # el conjunto 2020-1 no trae estas dos, así que pueden faltar
 COLUMNAS_PUEDEN_FALTAR = ("estu_nse_individual", "estu_inse_individual")
 
+# ojo: el conjunto 2020-2 de la API publica el periodo como 20204
+CORRECCION_PERIODO = {"20204": "20202"}
+
 
 def transform_api(staging_dir: str | None = None, **kwargs) -> str:
     carpeta = ruta_staging(staging_dir)
@@ -39,8 +42,14 @@ def transform_api(staging_dir: str | None = None, **kwargs) -> str:
     log.info("Columnas de la API que se descartan: %d", df.shape[1] - len(COLUMNAS_ENTRADA))
     df = df[COLUMNAS_ENTRADA]
 
-    limpio = limpiar(df, fuente="api_2020")
+    # ojo: aquí se corrige el periodo, antes de limpiar(), para que anio y semestre salgan bien
+    df = df.copy()
+    corregidas = int(df["periodo"].isin(CORRECCION_PERIODO).sum())
+    df["periodo"] = df["periodo"].replace(CORRECCION_PERIODO)
+    log.info("Periodos corregidos %s: %d filas.", CORRECCION_PERIODO, corregidas)
 
+    limpio = limpiar(df, fuente="api_2020")
+    
     salida = carpeta / ARCHIVOS["staging_api"]
     escribir_parquet(limpio, salida)
     return str(salida)
