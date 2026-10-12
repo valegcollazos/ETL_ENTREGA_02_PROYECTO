@@ -29,11 +29,11 @@ def merge(staging_dir: str | None = None, fuentes=FUENTES) -> str:
                  sorted(df["anio"].dropna().unique().tolist()))
         partes.append(df)
 
-    if errores:  # se reportan TODOS los archivos malos de una vez
+    if errores: 
         raise EsquemaError("merge detenido:\n" + "\n".join(errores))
 
     merged = pd.concat(partes, ignore_index=True)
-    validar_esquema(merged, nombre=ARCHIVOS["staging_merged"])  # incluye duplicados entre fuentes
+    validar_esquema(merged, nombre=ARCHIVOS["staging_merged"]) 
 
     log.info("Filas por año en el merge:\n%s", merged["anio"].value_counts().sort_index().to_string())
     salida = escribir_parquet(merged, carpeta / ARCHIVOS["staging_merged"])

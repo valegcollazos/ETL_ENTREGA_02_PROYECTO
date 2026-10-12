@@ -4,7 +4,7 @@ import os
 
 from sqlalchemy import create_engine
 
-try:  # fuera de Docker, lee el .env de la raíz del repo; dentro de Docker ya vienen las variables
+try:  
     from dotenv import load_dotenv
     load_dotenv()
 except ImportError:

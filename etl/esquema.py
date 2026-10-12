@@ -4,15 +4,12 @@ import pandas as pd
 
 ESQUEMA_VERSION = "v1"
 
-# --- Centinelas y textos fijos ----------------------------------------------
 COD_ICFES_SIN_COLEGIO = -1
 NSE_SIN_DATO = -1
 TEXTO_NO_INFORMA = "No informa"
 TEXTO_NO_APLICA = "No aplica"
 NOMBRE_SIN_COLEGIO = "Sin colegio (inscripción individual)"
 
-# --- Las 25 columnas, en el orden exacto del esquema -------------------------
-# tipo: "texto" -> pandas "string" | "entero" -> "Int64" | "decimal" -> "float64"
 COLUMNAS_ESQUEMA: dict[str, str] = {
     # Identificación y tiempo
     "estu_consecutivo": "texto",
@@ -48,9 +45,9 @@ COLUMNAS_ESQUEMA: dict[str, str] = {
 
 DTYPE_PANDAS = {"texto": "string", "entero": "Int64", "decimal": "float64"}
 
-COLUMNAS = list(COLUMNAS_ESQUEMA)                                   # las 25
-COLUMNAS_CALCULADAS = ["anio", "semestre"]                           # las calcula la limpieza
-COLUMNAS_ENTRADA = [c for c in COLUMNAS if c not in COLUMNAS_CALCULADAS]  # las 23 que entrega cada rama
+COLUMNAS = list(COLUMNAS_ESQUEMA)                                   
+COLUMNAS_CALCULADAS = ["anio", "semestre"]                          
+COLUMNAS_ENTRADA = [c for c in COLUMNAS if c not in COLUMNAS_CALCULADAS]  
 
 COLUMNAS_PUNTAJE = [
     "punt_global", "punt_matematicas", "punt_lectura_critica",
@@ -61,10 +58,8 @@ COLUMNAS_COLEGIO_TEXTO = [
     "cole_calendario", "cole_area_ubicacion",
 ]
 COLUMNAS_TEXTO = [c for c, t in COLUMNAS_ESQUEMA.items() if t == "texto"]
-# Texto que se repara y se rellena con "No informa" (las llaves no: se validan aparte)
 COLUMNAS_TEXTO_DESCRIPTIVO = [c for c in COLUMNAS_TEXTO if c not in ("estu_consecutivo", "periodo")]
 
-# Nombres de archivo fijos (sección 7 de la guía)
 ARCHIVOS = {
     "raw_api": "raw_api.parquet",
     "raw_csv": "raw_csv.parquet",
@@ -81,9 +76,7 @@ class EsquemaError(ValueError):
 
 
 def validar_esquema(df: pd.DataFrame, nombre: str = "staging") -> None:
-    """Lanza EsquemaError si df no tiene exactamente las 25 columnas, en orden,
-    con los tipos del esquema, o si las llaves tienen nulos/duplicados.
-    `nombre` aparece en el mensaje para saber qué archivo falló."""
+
     problemas: list[str] = []
 
     faltantes = [c for c in COLUMNAS if c not in df.columns]
