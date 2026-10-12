@@ -192,12 +192,13 @@ const opts = (extra) => Object.assign({responsive:true, maintainAspectRatio:fals
 const yAxis = {scales:{y:{beginAtZero:false, title:{display:true, text:'Puntaje'}}}};
 
 // KPIs
-const g = D.periodos.map(r => r.p_global).filter(v => v != null);
+const gp = D.periodos.filter(r => r.p_global != null);
+const gTot = gp.reduce((a, r) => a + r.estudiantes, 0);
 document.getElementById('kpis').innerHTML = [
   [fmt(M.total), 'estudiantes en el DW'],
   [M.anios.join(' · '), 'años cargados'],
   [D.periodos.length, 'periodos'],
-  [fmt(Math.round(g.reduce((a,b)=>a+b,0)/g.length)), 'puntaje global (promedio de periodos)']
+  [fmt(Math.round(gp.reduce((a, r) => a + r.p_global * r.estudiantes, 0) / gTot)), 'puntaje global promedio (todos los estudiantes)']
 ].map(k => `<div class="card kpi"><b>${k[0]}</b><span>${k[1]}</span></div>`).join('');
 
 // 1. Línea por periodo
