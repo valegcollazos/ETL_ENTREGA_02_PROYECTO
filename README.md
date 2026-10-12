@@ -113,11 +113,51 @@ Pruebas realizadas:
 - Nombres de departamento y municipio entre años (por ejemplo `VALLE` vs `VALLE DEL CAUCA`, o `CALI` vs `SANTIAGO DE CALI`): hoy quedarían como lugares distintos en `dim_ubicacion`.
 - Categorías que cambian de redacción entre años (educación de los padres, `Si`/`Sí`): el DW no las mezcla por error, pero el dashboard las mostraría separadas.
 
-## 5. API elegida.
-_pendiente_
+## 5. API
 
-## 6. Suite de Great Expectations.
-_pendiente_
+La rama API trae Saber 11 de 2020 desde datos.gov.co, la plataforma de datos abiertos del Estado. Esta plataforma publica cada conjunto en una dirección con forma **`https://www.datos.gov.co/resource/<id>.json`**, y permite pedir solo las filas que se necesitan en lugar de bajar el archivo completo.
+
+El año 2020 está partido en dos publicaciones, una por periodo, y ninguna cubre sola el año:
+
+| Conjunto | Periodo en la API | Filas del país | Filas de Valle |
+|---|---|---|---|
+| **a8xr-en99** | **20201** | 15.435 | 6.301 |
+| **rnvb-vnyh** | **20204** | 504.872 | 35.442 |
+
+Se usan las dos y se unen en **raw_api.parquet**
+
+**Las consultas**
+- El filtro de Valle **upper(estu_depto_reside) = 'VALLE'**;  se hace dentro de la consulta, para no descargar más de 500.000 filas del país.
+- Se ordena por **estu_consecutivo** y se pagina de 10.000 en 10.000. Sin un orden fijo, las páginas se pueden repetir o saltar filas.
+- Se usa la versión **`/resource/<id>.json`** porque funciona sin credenciales; la versión **/api/v3/views/...** pide autenticación.
+- El token de aplicación **SOCRATA_APP_TOKEN** es opcional: sin token funciona, solo que mas limitado; si se define, se envía en la cabecera **X-App-Token**.
+- Ante errores temporales o límites de uso la descarga se reintenta sola y adicional, la tarea **extract_api** del DAG tiene 3 reintentos con espera progresiva.
+
+**Diferencias entre Datos del ICFES**
+- **a8xr-en99** no publica **estu_nse_individual** ni **estu_inse_individual**; se crean en nulo (NSE queda en **-1**).
+- La API omite los campos nulos en el JSON, y por eso **raw_api.parquet** tiene columnas que algunos registros no traen. Solo se conservan las 23 columnas del esquema.
+
+**Decisión sobre periodo en Datos del 20202**
+El conjunto 2020-2 publica el periodo como **20204**; la estructura de las tres ramas solo admite semestres 1 o 2 y ninguna de las dos publicaciones trae un **20202**, así que la corrección que tomamos no genera ninguna alteracion con ningún dato. Nosotros decidimos tratar el **20204** como el segundo semestre de 2020 y reasignarlo a **20202**, la fuente no explica qué significa el 4, por ellos nuestra decision; el cambio se hace en **transform_api**, antes de la limpieza compartida, y **raw_api.parquet** conserva el valor original. La ficha de la fuente está en **docs/ficha_fuente_api.md**.
+
+## 6. Great Expectations
+
+La tarea **quality_check** revisa **staging_merged.parquet** con Great Expectations usamos la versión 1.24.0, que es compatible con la imagen de Airflow del proyecto; aqui se define un grupo de reglas y un Checkpoint que la ejecuta; si alguna regla falla, la tarea termina con error, **load** no corre y los archivos de staging se conservan para revisarlos, tener en cuenta que el resultado de cada ejecución queda en **resultado_gx.json**, dentro de la carpeta de staging.
+
+| Que revisamos | Regla | Por que |
+|---|---|---|
+| Estructura | Existen las 25 columnas, en el orden del esquema | El merge y la carga dependen de la estructura comun |
+| Llaves | **estu_consecutivo** y **periodo** sin nulos; **estu_consecutivo** único | Es la llave de cada estudiante en la tabla de hechos |
+| Tiempo | **periodo** con formato AAAAS, año 2019, 2020 o 2025 y semestre 1 o 2 | Cada fuente aporta un año; un periodo raro indica un error de la rama |
+| Cobertura | Los tres años presentes, con un mínimo de filas por año | Detecta una carga cortada o una fuente que llegó vacía |
+| Ubicación | **estu_depto_reside** empieza por VALLE | solo estamos evaluando Valle del Cauca |
+| Puntajes | **punt_global** entre 0 y 500; las otras cinco pruebas entre 0 y 100 | Fuera de ese rango el dato es imposible. Los nulos no cuentan |
+| Socioeconómicas | NSE entre -1 y 4; internet y computador solo **Si**, **No** o **No informa** | Mantiene las categorias cerradas que usan las dimensiones |
+| Colegio | **cole_codigo_icfes** mayor o igual a -1 | -1 es el código de inscripción individual |
+
+**Mínimos de filas por año** 
+**MIN_FILAS_POR_ANIO** en **quality_check.py** en 2019: _DATOS DE CARLOS_ · 2020: 40.000 · 2025: 45.000, fijamos cerca del 90 % del conteo real de cada fuente, para detectar cargas incompletas sin que un descarte normal de duplicados dispare la regla.
+
 
 ## 7. EDA y visualizaciones 
 _pendiente_
