@@ -222,12 +222,32 @@ La tarea **quality_check** revisa **staging_merged.parquet** con Great Expectati
 Fijados cerca del 90% del conteo real de cada fuente para detectar cargas incompletas sin que un descarte normal de duplicados dispare la regla de calidad.
 
 
-## 7. DA y Visualizaciones
+## 7. EDA y Visualizaciones
+
+## 7. Análisis Exploratorio de Datos (EDA) e Informe Analítico
+
+El notebook interactivo (`notebooks/informe_saber11.ipynb`) y el reporte HTML generado (`reports/informe_saber11.html`) se alimentan directamente de los **149.959 registros** validados en el Data Warehouse (`saber11_dw_e2`).
+
+### Hallazgos Principales y Pruebas Estadísticas de Hipótesis:
+1. **Comparación Interanual (P1):** Se evaluaron las variaciones por semestre entre 2019, 2020 y 2025 mediante **ANOVA de Welch** y comparaciones por pares con corrección de Bonferroni.
+2. **Brecha Socioeconómica (P2):** La diferencia entre el Estrato 6 y el Estrato 1 es estadísticamente significativa ($p < 0,001$). El análisis de varianza ($\eta^2$) confirma que el nivel socioeconómico explica una porción sustancial del desempeño.
+3. **Brecha Digital (P3):** Se validó mediante **Prueba t de Welch** la ventaja significativa de los estudiantes con acceso a internet y computador en el hogar ($p < 0,001$).
+4. **Naturaleza del Colegio (P4):** Los colegios No Oficiales presentan un promedio superior a los Oficiales ($p < 0,001$), brecha asociada a factores socioeconómicos subyacentes.
+5. **Desempeño por Áreas (P5):** Se cuantificó la variación del puntaje por materia respecto al baseline de 2019 usando el **$d$ de Cohen** para evaluar el tamaño del efecto.
 
 ### 7.1.Resumen del Proceso EDA
 El Análisis Exploratorio de Datos (EDA), realizado sobre las tres fuentes pre-filtradas para el Valle del Cauca (disponible en `notebooks/eda_saber11.ipynb`), permitió identificar las siguientes características estructurales:
 - **Volumen Total:** Se identificaron **149.959 registros** consolidados repartidos en los tres momentos de análisis (57.341 en 2019; 41.743 en 2020; 50.875 en 2025).
-- **Tratamiento de Nulos y Faltantes:** Se detectó la ausencia sistemática de los índices `estu_nse_individual` e `estu_inse_individual` en los periodos 2019 y 2020 (debido a cambios metodológicos del ICFES). Se rellenaron con `-1` para NSE y valores nulos para INSE sin imputar datos artificiales.
+- **Tratamiento de Nulos y Faltantes:** 
+
+Tratamiento de Nulos y Faltantes en Índices Socioeconómicos (NSE/INSE):
+
+En 2019, los índices faltan únicamente en 12.899 de los 57.341 registros (~22,5%, asociados en su mayoría a inscripciones individuales).
+
+En 2020, el subconjunto 20201 no los publica desde la API, mientras que en 20202 (codificado como 20204) sí están presentes con solo 1.490 faltantes.
+
+En todos los casos, los faltantes se rellenan estandarizadamente con -1 para NSE y nulo para INSE sin imputar datos artificiales, y se excluyen puntualmente en las pruebas de hipótesis correspondientes reportando el porcentaje de cobertura.
+
 - **Diferenciación de Calendarios:** Se confirmó la fuerte dispersión entre el primer semestre (Calendario B, con mayor proporción de instituciones privadas y promedios globales más altos) y el segundo semestre (Calendario A, predominantemente oficial).
 
 ### 7.2.Dashboard y Hallazgos Socioeconómicos
