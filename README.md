@@ -109,7 +109,61 @@ Pruebas realizadas:
 - Idempotencia de la carga: cargar dos veces el mismo staging deja 50.875 filas en la fact.
 - Codificación: `etapa_pandemia` se guarda en UTF-8 ("Después").
 
-### 4.5 Decisiones pendientes para el esquema v2
+### 4.5 Resultados de la rama CSV (2019)
+Ficha completa en `docs/ficha_fuente_csv.md`. Fuente: `2019.csv`, datos abiertos ICFES Saber 11 2019, nacional, 459,6 MB, 94 columnas.
+
+| Etapa | Resultado |
+|---|---|
+| CSV completo (nacional) | 680.893 filas (20191: 66.104 · 20192: 614.789) |
+| Tras filtro Valle + 2019 (`read_csv`) | 57.341 filas (20191: 11.624 · 20192: 45.717) |
+| `staging_csv.parquet` (`transform_csv`) | 57.341 filas, 25 columnas |
+
+Transformaciones, en el orden en que se aplican:
+
+**`read_csv`** (CSV → `raw_csv.parquet`)
+1. **Lectura por bloques.** El archivo se lee en bloques de 100.000 filas para no cargar todo el país en memoria (máximo 216 MB, unos 8 s).
+2. **Encoding.** El CSV no viene en UTF-8 sino en latin-1 (ISO-8859-1). `read_csv` intenta UTF-8, como en la entrega 1, y al fallar lo lee en latin-1. Se verificó que las 66.104 filas de 20191 coinciden, en las 23 columnas del esquema, con una versión UTF-8 del mismo periodo.
+3. **Tipos y nulos al leer.** Todo se lee como texto, con los mismos valores nulos de la entrega 1 (`""`, `NA`, `N/A`, `null`, `NULL`). Los tipos los pone después la limpieza compartida.
+4. **Selección de columnas.** De las 94 columnas solo se leen las 23 de entrada del esquema; las otras 71 no se usan.
+   - Entre las que no se usan están los códigos DANE, que vienen en notación científica (`3.05001E+11`) porque el archivo se guardó desde Excel.
+   - Los nombres de columna se pasan a minúscula sin espacios; ya venían así.
+5. **Filtro Valle del Cauca.** Se compara `UPPER(TRIM(estu_depto_reside))` con `VALLE` y `VALLE DEL CAUCA`. El único valor con "VALLE" en el archivo es `VALLE`. Quedan 57.341 filas de 680.893 (8,4 %).
+6. **Filtro de año.** Se conservan los periodos que empiezan por 2019, que son `20191` y `20192`. El archivo solo trae 2019, así que este filtro no descarta filas; protege la rama si se le pasa un histórico de varios años.
+7. **Escritura.** `raw_csv.parquet` queda con 57.341 filas y 23 columnas de texto, y se sobreescribe en cada ejecución.
+
+**`transform_csv`** (`raw_csv.parquet` → `staging_csv.parquet`)
+
+8. **Columnas faltantes.** Las que no existen en el CSV se crean en nulo. En 2019 no faltó ninguna.
+9. **Limpieza compartida.** Se llama `limpiar(df, fuente="csv_2019")` (sección 4.2), con este resultado:
+   - *Llaves nulas descartadas:* 0.
+   - *Inscripción individual (sin colegio):* 10.784 estudiantes. Quedan con código `-1`, nombre `Sin colegio (inscripción individual)` y `No aplica` en naturaleza, calendario y área.
+   - *Texto:*
+     - ftfy no reparó ningún valor.
+     - Se quitaron espacios sobrantes del nombre del colegio en 1.287 filas.
+     - Los faltantes quedaron como `No informa`: estrato 14.575, educación del padre 14.257, educación de la madre 14.220, internet 14.306, computador 12.849 y personas en el hogar 12.736.
+   - *Numéricos:* puntajes a entero (`punt_ingles` con 152 nulos), INSE a decimal (12.899 nulos) y NSE a entero con `-1` si falta (12.899).
+   - *Tiempo:* `anio` = 2019; `semestre` 1 (11.624 filas) y 2 (45.717 filas).
+   - *Duplicados:* 0 filas idénticas y 0 dobles inscripciones.
+10. **Control de la rama.** Se verifica que solo queden `VALLE` y 2019; si no, la tarea falla.
+11. **Escritura.** `staging_csv.parquet` queda con 57.341 filas y 25 columnas, sin índice. Cumple `validar_esquema()` y se sobreescribe en cada ejecución.
+
+Hallazgos:
+- **Inscritos individuales sin datos socioeconómicos.** Solo 5 de 10.784 los tienen. Entre los escolarizados falta el 8,2 % de los estratos.
+- **Puntajes.**
+  - Todos están dentro de su rango.
+  - `punt_global` coincide con la fórmula ponderada del ICFES en las 57.189 filas con los cinco puntajes.
+  - Un estudiante tiene 0 en todas las pruebas y se conserva; GX decide si el lote pasa.
+- **Semestres con poblaciones distintas.**
+  - `20191` es calendario B: 7.462 de 7.484 escolarizados son de colegios no oficiales, con puntaje global medio de 284,4.
+  - `20192` es calendario A: 30.774 de 39.073 escolarizados son de colegios oficiales, con puntaje global medio de 245,1.
+  - Por eso 2019 se compara con el año completo, no con un solo semestre.
+
+Pruebas realizadas:
+- 5 pruebas de la rama en `tests/test_rama_csv.py` (filtro, varios archivos, variable de entorno, errores, esquema, repetibilidad y columnas faltantes). Se corren con `pytest -q`.
+- `read_csv` y `transform_csv` corren sobre el archivo completo.
+- Repetibilidad: dos ejecuciones seguidas dan el mismo staging (57.341 filas).
+
+### 4.6 Decisiones pendientes para el esquema v2
 - Nombres de departamento y municipio entre años (por ejemplo `VALLE` vs `VALLE DEL CAUCA`, o `CALI` vs `SANTIAGO DE CALI`): hoy quedarían como lugares distintos en `dim_ubicacion`.
 - Categorías que cambian de redacción entre años (educación de los padres, `Si`/`Sí`): el DW no las mezcla por error, pero el dashboard las mostraría separadas.
 
@@ -191,7 +245,7 @@ Probado en Windows con PowerShell y Docker Desktop.
 1. Instalar Docker Desktop y Git.
 2. `git clone https://github.com/valegcollazos/ETL_ENTREGA_02_PROYECTO.git` y entrar a la carpeta.
 3. Crear el `.env`: `copy .env.example .env` (Mac/Linux: `cp .env.example .env`) y cambiar `MYSQL_ROOT_PASSWORD` y `MYSQL_PASSWORD`.
-4. Poner el CSV 2019 en `data/input/` (nombre en `CSV_2019_PATH`).
+4. Descargar el CSV 2019 (`2019.rar`, enlace: _pendiente_), descomprimirlo y guardarlo como `data/input/saber11_2019.csv` (es el nombre de `CSV_2019_PATH`). Viene en latin-1; `read_csv` lo detecta solo.
 5. `docker compose up -d --build`. Con `docker compose ps`, `mysql` y `postgres` deben estar `healthy`; `airflow-init` termina solo con `exited (0)`. El MySQL del proyecto queda en el puerto 3307.
 6. Descargar [raw_saber11.zip](https://drive.google.com/file/d/1AN8FpzTootHtXAvN6IH5E8Vl9OXivSOs/view?usp=drive_link), descomprimirlo en `dumps/` y cargarlo siguiendo `docs/fuente_db_carga_raw.md`. Verificación (debe dar 661891):
 
