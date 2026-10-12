@@ -13,6 +13,7 @@ from etl.esquema import (
     COLUMNAS_PUNTAJE,
     COLUMNAS_TEXTO_DESCRIPTIVO,
     DTYPE_PANDAS,
+    EQUIVALENCIAS,
     NOMBRE_SIN_COLEGIO,
     NSE_SIN_DATO,
     TEXTO_NO_APLICA,
@@ -110,6 +111,10 @@ def limpiar(df: pd.DataFrame, fuente: str = "sin_nombre") -> pd.DataFrame:
     for col in COLUMNAS_TEXTO_DESCRIPTIVO:
         df[col] = _reparar_texto(df[col]).fillna(TEXTO_NO_INFORMA)
 
+    for col, mapa in EQUIVALENCIAS.items():
+        antes = df[col]
+        df[col] = antes.str.upper().map(mapa).fillna(antes).astype("string")
+        log.info("[%s] '%s': %d valores homologados.", fuente, col, int((df[col] != antes).sum()))
     
     for col in COLUMNAS_PUNTAJE:
         df[col] = a_numero(df[col], "int", col)
