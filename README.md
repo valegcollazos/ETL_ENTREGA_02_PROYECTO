@@ -1,6 +1,6 @@
 # ETL Saber 11 — Valle del Cauca antes, durante y después de la pandemia (Entrega 2)
 
-## 1. Objetivo
+## 1.Objetivo
 ¿Cómo cambió el rendimiento en Saber 11 y su relación con las condiciones socioeconómicas del hogar (estrato, educación de los padres, internet y computador, NSE) entre 2019 (antes), 2020 (durante) y 2025 (después de la pandemia) en el Valle del Cauca?
 
 **Propósito del pipeline.** Automatizar de forma reproducible la extracción, transformación, validación y carga de los resultados de Saber 11 en el Valle del Cauca para tres momentos (2019, 2020 y 2025), de modo que las tres fuentes queden unificadas en un solo modelo de datos y las comparaciones entre periodos se hagan siempre sobre datos validados.
@@ -10,7 +10,7 @@
 - Cómo se relaciona el rendimiento con el estrato, la educación de los padres, el acceso a internet y computador, y el nivel socioeconómico (NSE) del estudiante.
 - Si esas diferencias socioeconómicas se mantuvieron, aumentaron o disminuyeron después de la pandemia.
 
-## 2. Arquitectura
+## 2.Arquitectura
 
 ![Diagrama de arquitectura](docs/arquitectura.png)
 
@@ -24,7 +24,7 @@ Tres ramas en paralelo producen archivos con la misma estructura (ver sección 4
 | API | datos.gov.co, Saber 11 | 2020 |
 | DB | Base de la entrega 1 | 2025 |
 
-## 3. Pasos del pipeline y diseño del DAG.
+## 3.Pasos del pipeline y diseño del DAG.
 DAG `saber11_valle_etl` (`dags/saber11_etl_dag.py`):
 
 ```
@@ -35,6 +35,10 @@ read_db     -> transform_db  ┘
 ![DAG saber11_valle_etl en Airflow](docs/dag_graph.png)
 
 *Figura 2. Vista Graph del DAG en Airflow: tres ramas en paralelo que convergen en `merge`.*
+
+![Ejecución exitosa del DAG en Airflow](docs/dag_ejecucion_verde.png)
+
+*Figura 3. Ejecución exitosa de la corrida completa del pipeline en Airflow (todas las tareas en estado success).*
 
 | Tarea | Entrada → salida | Reintentos |
 |---|---|---|
@@ -52,9 +56,9 @@ read_db     -> transform_db  ┘
 
 Parámetros: `@daily` técnico (los datos son históricos: la ejecución diaria cumple la consigna de extracción programada, pero en la práctica no cambia nada), `catchup=False`, `max_active_runs=1`, reintento global 0. Los datos pasan entre tareas por archivos parquet en `data/staging`, nunca por XCom.
 
-## 4. Decisiones de transformación.
+## 4.Decisiones de transformación.
 
-### 4.1 Estructura común del dataset unificado
+### 4.1.Estructura común del dataset unificado
 Las tres fuentes se llevan a las mismas 25 columnas, en este orden y con estos tipos, antes de apilarlas. Esta estructura está definida en `etl/esquema.py` y `validar_esquema()` la verifica en cada rama y en el `merge`.
 
 | Grupo | Columna | Tipo | Regla |
@@ -74,7 +78,7 @@ Las tres fuentes se llevan a las mismas 25 columnas, en este orden y con estos t
 
 Filtros: solo Valle del Cauca (comparando `UPPER(TRIM(estu_depto_reside))`) y solo los periodos del año de cada fuente, aplicados al leer. Si una fuente no trae una columna (por ejemplo NSE/INSE en 2019 y 2020), se crea en nulo; no se inventan valores.
 
-### 4.2 Limpieza compartida (`etl/limpieza.py`)
+### 4.2.Limpieza compartida (`etl/limpieza.py`)
 Es la limpieza de la entrega 1 convertida en una sola función, `limpiar()`, que las tres ramas usan como último paso:
 - Texto: repara caracteres corruptos con ftfy, quita espacios y escribe los faltantes como `No informa`. Valores como `nan`, `None` o `NULL` escritos como texto se tratan como faltantes.
 - Estudiantes sin colegio: código `-1`, nombre `Sin colegio (inscripción individual)` y `No aplica` en naturaleza, calendario y área.
@@ -82,12 +86,12 @@ Es la limpieza de la entrega 1 convertida en una sola función, `limpiar()`, que
 - Deduplicación por `estu_consecutivo`, priorizando el registro con colegio sobre la inscripción individual.
 - Los renombres `punt_c_naturales → punt_naturales` y `cole_codigo_icfes → cole_cod_icfes` se hacen solo al cargar al DW.
 
-### 4.3 Diferencias con la entrega 1
+### 4.3.Diferencias con la entrega 1
 - Un mismo estudiante en dos colegios distintos, un periodo que no sea AAAAS o un puntaje con decimales detienen el proceso con un error claro (antes solo era un aviso o pasaban sin revisar).
 - Las filas que no encuentran su llave en una dimensión también detienen la carga (antes se descartaban).
 - DW nuevo (`saber11_dw_e2`) separado del nacional de la entrega 1, con `COLLATE utf8mb4_bin` para que "Si"/"Sí" o "VALLE"/"Valle" no se mezclen al cargar dimensiones, y `dim_tiempo.etapa_pandemia` (Antes / Durante / Después).
 
-### 4.4 Resultados de la rama DB (2025)
+### 4.4.Resultados de la rama DB (2025)
 Ficha completa en `docs/ficha_fuente_db.md`.
 
 | Etapa | Resultado |
@@ -109,7 +113,7 @@ Pruebas realizadas:
 - Idempotencia de la carga: cargar dos veces el mismo staging deja 50.875 filas en la fact.
 - Codificación: `etapa_pandemia` se guarda en UTF-8 ("Después").
 
-### 4.5 Resultados de la rama CSV (2019)
+### 4.5.Resultados de la rama CSV (2019)
 Ficha completa en `docs/ficha_fuente_csv.md`. Fuente: `2019.csv`, datos abiertos ICFES Saber 11 2019, nacional, 459,6 MB, 94 columnas.
 
 | Etapa | Resultado |
@@ -163,11 +167,11 @@ Pruebas realizadas:
 - `read_csv` y `transform_csv` corren sobre el archivo completo.
 - Repetibilidad: dos ejecuciones seguidas dan el mismo staging (57.341 filas).
 
-### 4.6 Decisiones pendientes para el esquema v2
+### 4.6.Decisiones pendientes para el esquema v2
 - Nombres de departamento y municipio entre años (por ejemplo `VALLE` vs `VALLE DEL CAUCA`, o `CALI` vs `SANTIAGO DE CALI`): hoy quedarían como lugares distintos en `dim_ubicacion`.
 - Categorías que cambian de redacción entre años (educación de los padres, `Si`/`Sí`): el DW no las mezcla por error, pero el dashboard las mostraría separadas.
 
-## 5. API
+## 5.API
 
 La rama API trae Saber 11 de 2020 desde datos.gov.co, la plataforma de datos abiertos del Estado. Esta plataforma publica cada conjunto en una dirección con forma **`https://www.datos.gov.co/resource/<id>.json`**, y permite pedir solo las filas que se necesitan en lugar de bajar el archivo completo.
 
@@ -194,7 +198,7 @@ Se usan las dos y se unen en **raw_api.parquet**
 **Decisión sobre periodo en Datos del 20202**
 El conjunto 2020-2 publica el periodo como **20204**; la estructura de las tres ramas solo admite semestres 1 o 2 y ninguna de las dos publicaciones trae un **20202**, así que la corrección que tomamos no genera ninguna alteracion con ningún dato. Nosotros decidimos tratar el **20204** como el segundo semestre de 2020 y reasignarlo a **20202**, la fuente no explica qué significa el 4, por ellos nuestra decision; el cambio se hace en **transform_api**, antes de la limpieza compartida, y **raw_api.parquet** conserva el valor original. La ficha de la fuente está en **docs/ficha_fuente_api.md**.
 
-## 6. Great Expectations
+## 6.Great Expectations
 
 La tarea **quality_check** revisa **staging_merged.parquet** con Great Expectations usamos la versión 1.24.0, que es compatible con la imagen de Airflow del proyecto; aqui se define un grupo de reglas y un Checkpoint que la ejecuta; si alguna regla falla, la tarea termina con error, **load** no corre y los archivos de staging se conservan para revisarlos, tener en cuenta que el resultado de cada ejecución queda en **resultado_gx.json**, dentro de la carpeta de staging.
 
@@ -218,15 +222,15 @@ La tarea **quality_check** revisa **staging_merged.parquet** con Great Expectati
 Fijados cerca del 90% del conteo real de cada fuente para detectar cargas incompletas sin que un descarte normal de duplicados dispare la regla de calidad.
 
 
-## 7. EDA y Visualizaciones
+## 7. DA y Visualizaciones
 
-### 7.1 Resumen del Proceso EDA
+### 7.1.Resumen del Proceso EDA
 El Análisis Exploratorio de Datos (EDA), realizado sobre las tres fuentes pre-filtradas para el Valle del Cauca (disponible en `notebooks/eda_saber11.ipynb`), permitió identificar las siguientes características estructurales:
 - **Volumen Total:** Se identificaron **149.959 registros** consolidados repartidos en los tres momentos de análisis (57.341 en 2019; 41.743 en 2020; 50.875 en 2025).
 - **Tratamiento de Nulos y Faltantes:** Se detectó la ausencia sistemática de los índices `estu_nse_individual` e `estu_inse_individual` en los periodos 2019 y 2020 (debido a cambios metodológicos del ICFES). Se rellenaron con `-1` para NSE y valores nulos para INSE sin imputar datos artificiales.
 - **Diferenciación de Calendarios:** Se confirmó la fuerte dispersión entre el primer semestre (Calendario B, con mayor proporción de instituciones privadas y promedios globales más altos) y el segundo semestre (Calendario A, predominantemente oficial).
 
-### 7.2 Dashboard y Hallazgos Socioeconómicos
+### 7.2.Dashboard y Hallazgos Socioeconómicos
 El dashboard interactivo fue construido consultando directamente el Data Warehouse validado (`saber11_dw_e2`) y exportado a `dashboards/saber11_valle.html`.
 
 ![Resultados Generales y Promedio por Área](docs/dashboard_01.png)
@@ -248,13 +252,13 @@ El dashboard interactivo fue construido consultando directamente el Data Warehou
    - **Estrato Socioeconómico:** Existe una relación directamente proporcional entre el estrato y el rendimiento. Los estudiantes de Estratos 5 y 6 superan los **290 puntos** en promedio, mientras que en Estratos 1 y 2 los promedios oscilan entre **235 y 250 puntos**.
    - **Naturaleza del Colegio:** La brecha entre colegios **No Oficiales (Privados)** y **Oficiales (Públicos)** se mantuvo en el tiempo. En 2025, la educación privada alcanzó un promedio cercano a 277 puntos, frente a los 253 puntos de la educación pública.
 
-## 8. Modelo de datos
+## 8.Modelo de datos
 
 Modelo en estrella en MySQL (base `saber11_dw_e2`, script `sql/esquema_dw.sql`). **Granularidad:** una fila de la fact por estudiante (`bk_estu_consecutivo`).
 
 ![Modelo de datos en estrella](docs/modelo_datos.png)
 
-*Figura 3. Modelo en estrella: la fact `fact_resultadossaber11` y sus cuatro dimensiones.*
+*Figura 6. Modelo en estrella: la fact `fact_resultadossaber11` y sus cuatro dimensiones.*
 
 | Tabla | Contenido | Llaves |
 |---|---|---|
@@ -271,7 +275,7 @@ Decisiones de diseño:
 - `dim_tiempo.etapa_pandemia` clasifica cada periodo (2019 Antes, 2020 Durante, 2025 Después) y facilita filtrar en el dashboard.
 - La limpieza usa `punt_c_naturales` y `cole_codigo_icfes`; al cargar al DW se renombran a `punt_naturales` y `cole_cod_icfes`.
 
-## 9. Cómo correrlo desde cero
+## 9.Cómo correrlo desde cero
 Probado en Windows con PowerShell y Docker Desktop.
 
 1. Instalar Docker Desktop y Git.
@@ -292,7 +296,7 @@ Probado en Windows con PowerShell y Docker Desktop.
    "SELECT t.anio, t.etapa_pandemia, COUNT(*) FROM fact_resultadossaber11 f JOIN dim_tiempo t USING (id_tiempo) GROUP BY t.anio, t.etapa_pandemia;" | docker compose exec -T mysql sh -c 'mysql -u$MYSQL_USER -p$MYSQL_PASSWORD saber11_dw_e2'
 ```
 
-## 10. Estructura
+## 10.Estructura
 ```
 dags/        DAG (solo tareas y dependencias)
 etl/         esquema, limpieza compartida, ramas (api, csv, db), merge, calidad, carga
