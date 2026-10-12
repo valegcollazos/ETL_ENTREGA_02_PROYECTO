@@ -58,6 +58,8 @@ def _crear_suite(anios: dict[int, int]) -> list:
 
     # categorías: NSE entre -1 y 4, -1 significa sin dato
     reglas.append(gxe.ExpectColumnValuesToBeInSet(column="estu_nse_individual", value_set=[-1, 1, 2, 3, 4]))
+    reglas.append(gxe.ExpectColumnValuesToBeInSet(column="cole_area_ubicacion", value_set=["URBANA", "RURAL", "No aplica"]))
+    reglas.append(gxe.ExpectColumnValuesToBeInSet(column="cole_calendario", value_set=["A", "B", "OTRO", "No aplica"]))
     reglas.append(gxe.ExpectColumnValuesToBeBetween(column="cole_codigo_icfes", min_value=-1))
     for col in ("fami_tieneinternet", "fami_tienecomputador"):
         reglas.append(gxe.ExpectColumnValuesToBeInSet(column=col, value_set=["Si", "No", "No informa"]))

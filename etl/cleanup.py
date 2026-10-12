@@ -3,6 +3,7 @@
 Solo corre si load terminó bien (regla por defecto de Airflow: all_success).
 Si quality_check falla, load y cleanup no corren y los archivos quedan para revisar.
 Solo borra los nombres fijos del esquema: nunca borra otra cosa de la carpeta.
+Excepción: staging_merged.parquet se conserva para el análisis exploratorio (notebook).
 """
 from __future__ import annotations
 
@@ -19,6 +20,9 @@ def cleanup_staging(staging_dir: str | None = None) -> list[str]:
     carpeta = ruta_staging(staging_dir)
     borrados = []
     for nombre in ARCHIVOS.values():
+
+        if nombre == "staging_merged.parquet":
+            continue
         for ruta in (carpeta / nombre, carpeta / f"{nombre}.tmp"):
             if ruta.exists():
                 ruta.unlink()

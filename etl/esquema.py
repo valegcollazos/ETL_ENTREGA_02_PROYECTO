@@ -9,6 +9,7 @@ NSE_SIN_DATO = -1
 TEXTO_NO_INFORMA = "No informa"
 TEXTO_NO_APLICA = "No aplica"
 NOMBRE_SIN_COLEGIO = "Sin colegio (inscripción individual)"
+EQUIVALENCIAS = {"cole_area_ubicacion": {"URBANO": "URBANA"}}
 
 COLUMNAS_ESQUEMA: dict[str, str] = {
     # Identificación y tiempo
