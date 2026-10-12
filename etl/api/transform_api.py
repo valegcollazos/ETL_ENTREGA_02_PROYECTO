@@ -1,9 +1,3 @@
-"""transform_api — responsable: Lauren.
-
-Entrada: raw_api.parquet
-Salida:  staging_api.parquet
-Último paso: etl.limpieza.limpiar(df, fuente='api_2020') + etl.staging.escribir_parquet.
-"""
 from __future__ import annotations
 
 import argparse

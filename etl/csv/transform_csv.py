@@ -1,13 +1,3 @@
-"""Rama CSV (Carlos) — transform_csv.
-
-raw_csv.parquet -> 23 columnas de entrada -> limpieza compartida -> staging_csv.parquet
-(se sobreescribe). El CSV 2019 ya trae las 23 columnas con los nombres del
-esquema; si alguna faltara, se crea en nulo antes de limpiar (no se inventan valores).
-Aquí no se limpia nada a mano: todo lo hace etl.limpieza.limpiar().
-
-Probar fuera de Airflow:
-    python -m etl.csv.transform_csv --staging data/staging
-"""
 from __future__ import annotations
 
 import argparse

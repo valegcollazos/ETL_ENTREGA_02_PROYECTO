@@ -1,9 +1,3 @@
-"""extract_api — responsable: Lauren.
-
-Entrada: API de datos.gov.co Saber 11 del año 2020, solo Valle esto seria el durante.
-Salida:  raw_api.parquet
-Variable de entorno API: SOCRATA_APP_TOKEN, esta es la plataforma que usa el gobierno para publicar los datos y su respectiva clave
-"""
 from __future__ import annotations
 
 import argparse

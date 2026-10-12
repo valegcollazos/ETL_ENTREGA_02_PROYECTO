@@ -1,10 +1,3 @@
-"""
-Esquema de staging v1: estructura común de las tres fuentes.
-
-Describe el archivo staging_*.parquet que produce cada rama (API 2020, CSV 2019,
-DB 2025). La versión legible está en el README (sección 4.1); si se cambia
-el esquema, se actualizan los dos y se sube ESQUEMA_VERSION.
-"""
 from __future__ import annotations
 
 import pandas as pd

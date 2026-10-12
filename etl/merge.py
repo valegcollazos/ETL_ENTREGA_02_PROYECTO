@@ -1,11 +1,3 @@
-"""merge (Valeria): apila los tres staging en staging_merged.parquet.
-
-Antes de apilar verifica que cada archivo cumpla el esquema (25 columnas,
-orden, tipos, llaves). Si uno no cumple, falla diciendo cuál y por qué.
-
-Probar fuera de Airflow:
-    python -m etl.merge --staging data/staging
-"""
 from __future__ import annotations
 
 import argparse

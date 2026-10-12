@@ -1,23 +1,3 @@
-"""Rama CSV (Carlos) — read_csv.
-
-Lee el CSV de resultados Saber 11 2019, SOLO Valle del Cauca y SOLO el año de la
-rama (2019), filtrando mientras lee (por bloques) para no cargar todo el país.
-Solo trae las 23 columnas de entrada del esquema que existan en el archivo.
-Salida: raw_csv.parquet en la carpeta de staging (se sobreescribe), todo como texto.
-
-De dónde sale la ruta del CSV:
-  1. el parámetro `ruta_csv` (una ruta o una lista de rutas), o
-  2. la variable de entorno CSV_2019_PATH (una ruta, o varias separadas por coma,
-     por ejemplo los dos semestres de 2019).
-También sirve el histórico completo 2019-2025: el filtro por año se aplica al leer.
-
-Lee con las mismas opciones de la entrega 1 (etl/ingesta_raw.py): todo como
-texto, UTF-8 y los mismos valores tratados como nulos.
-
-Probar fuera de Airflow:
-    python -m etl.csv.read_csv --staging data/staging
-    python -m etl.csv.read_csv --staging data/staging --csv data/input/saber11_20191.csv data/input/saber11_20192.csv
-"""
 from __future__ import annotations
 
 import argparse
@@ -30,7 +10,7 @@ import pandas as pd
 from etl.esquema import ARCHIVOS, COLUMNAS_ENTRADA
 from etl.staging import escribir_parquet, ruta_staging
 
-try:  # fuera de Docker, lee el .env de la raíz del repo (igual que etl/config.py)
+try:  
     from dotenv import load_dotenv
     load_dotenv()
 except ImportError:
@@ -39,14 +19,11 @@ except ImportError:
 log = logging.getLogger(__name__)
 
 ANIO_RAMA = 2019
-# En 2019 aparece como VALLE; se dejan ambas, igual que en read_db.
 DEPTOS_VALLE = ("VALLE", "VALLE DEL CAUCA")
 CHUNKSIZE = 100_000
 SEPARADORES = (",", ";", "|", "\t", "¬")
-# "utf-8-sig" es UTF-8 como en la entrega 1, pero además ignora el BOM si lo hay.
-# Si un archivo no es UTF-8 se reintenta en latin-1; el mojibake lo repara limpiar().
 ENCODINGS = ("utf-8-sig", "latin-1")
-VALORES_NULOS = ["", "NA", "N/A", "null", "NULL"]  # mismos de la entrega 1 (+ los de pandas)
+VALORES_NULOS = ["", "NA", "N/A", "null", "NULL"]  
 
 
 def _rutas_csv(ruta_csv) -> list[Path]:
@@ -155,7 +132,7 @@ def read_csv(staging_dir: str | None = None, ruta_csv=None, anio: int = ANIO_RAM
              f"{sum(i['filas_leidas'] for i in infos):,}", f"{len(df):,}", anio,
              df["periodo"].value_counts().sort_index().to_dict())
 
-    # Todo como texto en el raw: los tipos los pone la limpieza compartida.
+   
     df = df.astype("string")
     escribir_parquet(df, salida)
     return str(salida)

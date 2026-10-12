@@ -1,12 +1,3 @@
-"""quality_check — responsable: Lauren.
-
-Entrada: staging_merged.parquet
-Salida:  resultado_gx.json; si la suite no pasa, lanza excepción y load no corre.
-Suite de Great Expectations + Checkpoint 
-
-Probar fuera de Airflow:
-    python -m etl.calidad.quality_check --staging data/staging
-"""
 from __future__ import annotations
 
 import argparse
