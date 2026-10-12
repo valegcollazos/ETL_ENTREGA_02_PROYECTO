@@ -1,9 +1,3 @@
-"""Conexiones a MySQL a partir de variables de entorno (archivo .env, que NO se sube).
-
-Dos bases en el mismo servidor MySQL:
-  - RAW_DB_NAME: la base de la entrega 1, con la tabla raw_saber11 (fuente de la rama DB).
-  - DW_DB_NAME:  el Data Warehouse NUEVO de la entrega 2 (vacío al inicio).
-"""
 from __future__ import annotations
 
 import os

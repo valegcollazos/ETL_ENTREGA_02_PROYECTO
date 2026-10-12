@@ -1,8 +1,3 @@
-"""Lectura/escritura de archivos de staging (parquet).
-
-Reglas de la guía (sección 3): los datos pasan entre tareas por archivos, cada
-tarea SOBREESCRIBE su archivo (nunca agrega) y si algo falla lanza excepción.
-"""
 from __future__ import annotations
 
 import logging

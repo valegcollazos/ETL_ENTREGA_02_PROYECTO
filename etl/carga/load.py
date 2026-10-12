@@ -1,15 +1,3 @@
-"""load (Valeria): staging_merged.parquet -> Data Warehouse de la entrega 2.
-
-Adaptado de transformacion.py (entrega 1): misma estrella, mismas dimensiones,
-pero ahora lee del staging ya limpio y validado por GX en vez de la tabla raw.
-Aquí (y solo aquí) se renombran punt_c_naturales -> punt_naturales y
-cole_codigo_icfes -> cole_cod_icfes, como define el esquema.
-
-Idempotente: INSERT IGNORE sobre llaves únicas, así que reejecutar no duplica.
-
-Probar fuera de Airflow (con el DW creado con sql/esquema_dw.sql):
-    python -m etl.carga.load --staging data/staging
-"""
 from __future__ import annotations
 
 import argparse
@@ -34,13 +22,12 @@ COLS_UBICACION = ["estu_depto_reside", "estu_mcpio_reside"]
 ETAPA_PANDEMIA = {2019: "Antes", 2020: "Durante", 2025: "Después"}
 
 
-# --- Construcción de dimensiones (igual que en la entrega 1) -----------------
 def construir_dim_colegio(df: pd.DataFrame) -> pd.DataFrame:
     dim = (
         df[["cole_codigo_icfes", "cole_nombre_establecimiento", "cole_naturaleza",
             "cole_calendario", "cole_area_ubicacion", "periodo"]]
         .sort_values("periodo", kind="stable")
-        .drop_duplicates(subset=["cole_codigo_icfes"], keep="last")  # atributos más recientes
+        .drop_duplicates(subset=["cole_codigo_icfes"], keep="last")  
         .drop(columns="periodo")
     )
     return dim.rename(columns={"cole_codigo_icfes": "cole_cod_icfes"})

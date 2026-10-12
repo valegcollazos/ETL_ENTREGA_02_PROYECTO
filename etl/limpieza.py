@@ -1,25 +1,3 @@
-"""
-Módulo de limpieza compartido (Hito 1).
-
-Sale de la función `limpiar()` de transformacion.py (entrega 1). Cada rama
-(API 2020, CSV 2019, DB 2025) llama `limpiar()` como ÚLTIMO paso antes
-de escribir su staging_*.parquet. Nadie reimplementa esta lógica en su rama.
-
-Uso:
-    from etl.limpieza import limpiar
-    from etl.staging import escribir_parquet
-
-    df_limpio = limpiar(df_23_columnas, fuente="csv_2019")
-    escribir_parquet(df_limpio, ruta_staging / "staging_csv.parquet")
-
-Qué recibe: un DataFrame con las 23 columnas de entrada del esquema
-(todas menos anio y semestre), con esos nombres exactos. Los valores pueden
-venir como texto. Si tu fuente no tiene una columna, créala en nulo ANTES:
-    df["estu_nse_individual"] = None
-
-Qué devuelve: las 25 columnas del esquema, en orden y con sus tipos.
-Si algo no se puede resolver, lanza EsquemaError con un mensaje claro.
-"""
 from __future__ import annotations
 
 import logging
