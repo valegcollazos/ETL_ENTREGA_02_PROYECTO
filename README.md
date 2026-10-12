@@ -210,11 +210,43 @@ La tarea **quality_check** revisa **staging_merged.parquet** con Great Expectati
 | Colegio | **cole_codigo_icfes** mayor o igual a -1 | -1 es el código de inscripción individual |
 
 **Mínimos de filas por año** 
-**MIN_FILAS_POR_ANIO** en **quality_check.py** en 2019: _DATOS DE CARLOS_ · 2020: 40.000 · 2025: 45.000, fijamos cerca del 90 % del conteo real de cada fuente, para detectar cargas incompletas sin que un descarte normal de duplicados dispare la regla.
+`MIN_FILAS_POR_ANIO` en `quality_check.py`:
+- 2019: **50.000** filas
+- 2020: **40.000** filas
+- 2025: **45.000** filas
+
+Fijados cerca del 90% del conteo real de cada fuente para detectar cargas incompletas sin que un descarte normal de duplicados dispare la regla de calidad.
 
 
-## 7. EDA y visualizaciones 
-_pendiente_
+## 7. EDA y Visualizaciones
+
+### 7.1 Resumen del Proceso EDA
+El Análisis Exploratorio de Datos (EDA), realizado sobre las tres fuentes pre-filtradas para el Valle del Cauca (disponible en `notebooks/eda_saber11.ipynb`), permitió identificar las siguientes características estructurales:
+- **Volumen Total:** Se identificaron **149.959 registros** consolidados repartidos en los tres momentos de análisis (57.341 en 2019; 41.743 en 2020; 50.875 en 2025).
+- **Tratamiento de Nulos y Faltantes:** Se detectó la ausencia sistemática de los índices `estu_nse_individual` e `estu_inse_individual` en los periodos 2019 y 2020 (debido a cambios metodológicos del ICFES). Se rellenaron con `-1` para NSE y valores nulos para INSE sin imputar datos artificiales.
+- **Diferenciación de Calendarios:** Se confirmó la fuerte dispersión entre el primer semestre (Calendario B, con mayor proporción de instituciones privadas y promedios globales más altos) y el segundo semestre (Calendario A, predominantemente oficial).
+
+### 7.2 Dashboard y Hallazgos Socioeconómicos
+El dashboard interactivo fue construido consultando directamente el Data Warehouse validado (`saber11_dw_e2`) y exportado a `dashboards/saber11_valle.html`.
+
+![Resultados Generales y Promedio por Área](docs/dashboard_01.png)
+*Figura 4. Indicadores globales y promedio de puntaje por área antes (2019), durante (2020) y después (2025) de la pandemia.*
+
+![Análisis Socioeconómico y Conectividad](docs/dashboard_02.png)
+*Figura 5. Relación del puntaje global con estrato, naturaleza del colegio, acceso a internet y tabla resumen por periodo.*
+
+#### Principales Insights Extraídos:
+1. **Comportamiento Temporal y Pandemia:**
+   - **Puntaje Promedio Global Consolidado:** El rendimiento global promedio se ubicó en **267 puntos**.
+   - **Efecto de la Estacionalidad:** Se mantiene una brecha marcada por semestre: los periodos `20191` (284,37), `20201` (290,12) y `20251` (284,07) muestran promedios sensiblemente superiores a `20192` (245,14), `20202` (245,13) y `20252` (254,40).
+   - **Recuperación Post-Pandemia:** En 2025 (después de la pandemia), se destaca una marcada mejora en el área de **Inglés** (superando los 54 puntos promedio) y leves incrementos en **Lectura Crítica** y **Matemáticas** comparado con los niveles de 2019 y 2020.
+
+2. **Brecha Digital (Acceso a Internet):**
+   - El acceso a internet en el hogar demuestra ser un factor determinante en el rendimiento académicos: los estudiantes con acceso a internet obtuvieron promedios globales consistentemente superiores (~267 puntos en 2025) frente a aquellos sin conectividad (~241 puntos).
+
+3. **Estratificación y Brecha Institucional:**
+   - **Estrato Socioeconómico:** Existe una relación directamente proporcional entre el estrato y el rendimiento. Los estudiantes de Estratos 5 y 6 superan los **290 puntos** en promedio, mientras que en Estratos 1 y 2 los promedios oscilan entre **235 y 250 puntos**.
+   - **Naturaleza del Colegio:** La brecha entre colegios **No Oficiales (Privados)** y **Oficiales (Públicos)** se mantuvo en el tiempo. En 2025, la educación privada alcanzó un promedio cercano a 277 puntos, frente a los 253 puntos de la educación pública.
 
 ## 8. Modelo de datos
 
@@ -245,7 +277,7 @@ Probado en Windows con PowerShell y Docker Desktop.
 1. Instalar Docker Desktop y Git.
 2. `git clone https://github.com/valegcollazos/ETL_ENTREGA_02_PROYECTO.git` y entrar a la carpeta.
 3. Crear el `.env`: `copy .env.example .env` (Mac/Linux: `cp .env.example .env`) y cambiar `MYSQL_ROOT_PASSWORD` y `MYSQL_PASSWORD`.
-4. Descargar el CSV 2019 (`2019.rar`, enlace: _pendiente_), descomprimirlo y guardarlo como `data/input/saber11_2019.csv` (es el nombre de `CSV_2019_PATH`). Viene en latin-1; `read_csv` lo detecta solo.
+4. Descargar el CSV 2019 (`saber11_2019.csv`, disponible en el enlace de Google Drive del equipo: [saber11_2019.csv en Google Drive](https://drive.google.com/file/d/1YxV7oSol4Bg1qfXvLV-L4b6J4tc1eMkd/view?usp=drive_link)), y guardarlo en la carpeta `data/input/saber11_2019.csv`. Viene en latin-1; `read_csv` lo detecta solo.
 5. `docker compose up -d --build`. Con `docker compose ps`, `mysql` y `postgres` deben estar `healthy`; `airflow-init` termina solo con `exited (0)`. El MySQL del proyecto queda en el puerto 3307.
 6. Descargar [raw_saber11.zip](https://drive.google.com/file/d/1AN8FpzTootHtXAvN6IH5E8Vl9OXivSOs/view?usp=drive_link), descomprimirlo en `dumps/` y cargarlo siguiendo `docs/fuente_db_carga_raw.md`. Verificación (debe dar 661891):
 
