@@ -1,6 +1,6 @@
 # ETL Saber 11 — Valle del Cauca antes, durante y después de la pandemia (Entrega 2)
 
-## 1.Objetivo
+## 1. Objetivo
 ¿Cómo cambió el rendimiento en Saber 11 y su relación con las condiciones socioeconómicas del hogar (estrato, educación de los padres, internet y computador, NSE) entre 2019 (antes), 2020 (durante) y 2025 (después de la pandemia) en el Valle del Cauca?
 
 **Propósito del pipeline.** Automatizar de forma reproducible la extracción, transformación, validación y carga de los resultados de Saber 11 en el Valle del Cauca para tres momentos (2019, 2020 y 2025), de modo que las tres fuentes queden unificadas en un solo modelo de datos y las comparaciones entre periodos se hagan siempre sobre datos validados.
@@ -10,7 +10,7 @@
 - Cómo se relaciona el rendimiento con el estrato, la educación de los padres, el acceso a internet y computador, y el nivel socioeconómico (NSE) del estudiante.
 - Si esas diferencias socioeconómicas se mantuvieron, aumentaron o disminuyeron después de la pandemia.
 
-## 2.Arquitectura
+## 2. Arquitectura
 
 ![Diagrama de arquitectura](docs/arquitectura.png)
 
@@ -24,7 +24,7 @@ Tres ramas en paralelo producen archivos con la misma estructura (ver sección 4
 | API | datos.gov.co, Saber 11 | 2020 |
 | DB | Base de la entrega 1 | 2025 |
 
-## 3.Pasos del pipeline y diseño del DAG.
+## 3. Pasos del pipeline y diseño del DAG.
 DAG `saber11_valle_etl` (`dags/saber11_etl_dag.py`):
 
 ```
@@ -56,7 +56,7 @@ read_db     -> transform_db  ┘
 
 Parámetros: `@daily` técnico (los datos son históricos: la ejecución diaria cumple la consigna de extracción programada, pero en la práctica no cambia nada), `catchup=False`, `max_active_runs=1`, reintento global 0. Los datos pasan entre tareas por archivos parquet en `data/staging`, nunca por XCom.
 
-## 4.Decisiones de transformación.
+## 4. Decisiones de transformación.
 
 ### 4.1. Estructura común del dataset unificado
 
@@ -95,13 +95,13 @@ Es la limpieza de la entrega 1 convertida en una sola función, `limpiar()`, que
 ### 4.4. Resultados de la rama DB (2025)
 Ficha completa en `docs/ficha_fuente_db.md`.
 
-Etapa | Resultado |
+| Etapa | Resultado |
 |---|---|
 | Tabla `raw_saber11` (nacional, entrega 1) | 661.891 filas |
 | Tras filtro Valle + 2025 (`read_db`) | 50.875 filas (20251: 11.947 · 20252: 38.928) |
 | `staging_db.parquet` (`transform_db`) | 50.875 filas, 25 columnas |
 | Fact en el DW tras `load` | 50.875 filas |
-| Dimensiones | `dim_colegio` 1.267 · `dim_ubicacion` 42 · `dim_socioeconomica` 8.699 · `dim_tiempo` 2 |
+| Dimensiones | `dim_colegio` 1.798 · `dim_ubicacion` 42 · `dim_socioeconomica` 16.582 · `dim_tiempo` 6 |
 
 Hallazgos: 7.856 estudiantes sin colegio (inscripción individual), 0 filas con llaves nulas, 0 duplicados y 0 dobles inscripciones; 376 colegios con atributos distintos entre registros (aviso informativo de la limpieza).
 
@@ -207,50 +207,92 @@ La tarea **`quality_check`** revisa **`staging_merged.parquet`** con Great Expec
 
 Cada mínimo se fijó un poco por debajo del conteo real de su fuente, para detectar cargas incompletas sin que un descarte normal de duplicados dispare la regla de calidad.
 
-**Integración y generación del informe analítico**
-Una vez que Great Expectations valida el archivo unificado `staging_merged.parquet`, los datos pasan a la tarea de carga en MySQL (`load`). Para responder a la retroalimentación técnica de la entrega anterior, el flujo activa la tarea **`dashboard_update`** y permite ejecutar en Docker el informe analítico completo (`reports/informe_saber11.html`) con las pruebas estadísticas formales sobre los datos validados del Data Warehouse.
+**Integración y generación de informes analíticos**
+Una vez que Great Expectations valida el archivo unificado `staging_merged.parquet`, los datos pasan a la tarea de carga en MySQL (`load`) y luego a `dashboard_update`, que es la única tarea del DAG que produce un entregable de análisis (el tablero). El EDA y el informe analítico con las pruebas estadísticas formales **no son tareas del DAG**: son cuadernos que se ejecutan en Docker sobre el Data Warehouse ya cargado (sección 9) y generan `reports/eda_saber11.html` y `reports/informe_saber11.html`.
 
 ## 7. Análisis Exploratorio de Datos (EDA) e Informe Analítico
 
-El notebook interactivo (`notebooks/informe_saber11.ipynb`) y el reporte HTML generado (`reports/informe_saber11.html`) se alimentan directamente de los **149.959 registros** validados en el Data Warehouse (`saber11_dw_e2`).
+Hay dos cuadernos en `notebooks/`. Ambos leen **solo el Data Warehouse** (`saber11_dw_e2`: 149.959 registros que ya pasaron Great Expectations y la carga) y se exportan a HTML en `reports/`. Ninguno es una tarea del DAG: se ejecutan a demanda cuando el DAG ya terminó (ver sección 9).
 
-### Hallazgos Principales y Pruebas Estadísticas de Hipótesis:
-1. **Comparación Interanual (P1):** Se evaluaron las variaciones por semestre entre 2019, 2020 y 2025 mediante **ANOVA de Welch** y comparaciones por pares con corrección de Bonferroni.
-2. **Brecha Socioeconómica (P2):** La diferencia entre el Estrato 6 y el Estrato 1 es estadísticamente significativa ($p < 0,001$). El análisis de varianza ($\eta^2$) confirma que el nivel socioeconómico explica una porción sustancial del desempeño.
-3. **Brecha Digital (P3):** Se validó mediante **Prueba t de Welch** la ventaja significativa de los estudiantes con acceso a internet y computador en el hogar ($p < 0,001$).
-4. **Naturaleza del Colegio (P4):** Los colegios No Oficiales presentan un promedio superior a los Oficiales ($p < 0,001$), brecha asociada a factores socioeconómicos subyacentes.
-5. **Desempeño por Áreas (P5):** Se cuantificó la variación del puntaje por materia respecto al baseline de 2019 usando el **$d$ de Cohen** para evaluar el tamaño del efecto.
+| Cuaderno | Salida | Para qué sirve |
+|---|---|---|
+| `eda_saber11.ipynb` | `reports/eda_saber11.html` | Calidad y forma de los datos: faltantes, duplicados, categorías, rangos, atípicos, distribuciones, relaciones y geografía. Justifica las decisiones de transformación (secciones 4 y 5). |
+| `informe_saber11.ipynb` | `reports/informe_saber11.html` | Pruebas de hipótesis (ANOVA de Welch, t de Welch, *d* de Cohen, η², interacción año × grupo) para decir si las diferencias son significativas **y** de qué tamaño. |
 
-### 7.1. Resumen del Proceso EDA
-El Análisis Exploratorio de Datos (EDA), realizado sobre las tres fuentes pre-filtradas para el Valle del Cauca (disponible en `notebooks/eda_saber11.ipynb`), permitió identificar las siguientes características estructurales:
-- **Volumen Total:** Se identificaron **149.959 registros** consolidados repartidos en los tres momentos de análisis (57.341 en 2019; 41.743 en 2020; 50.875 en 2025).
-- **Tratamiento de Nulos y Faltantes en Índices Socioeconómicos (NSE/INSE):**
-  - En **2019**, los índices faltan únicamente en 12.899 de los 57.341 registros (~22,5 %, asociados en su mayoría a inscripciones individuales).
-  - En **2020**, el subconjunto `20201` no los publica desde la API, mientras que en `20202` (codificado como `20204`) sí están presentes con solo 1.490 faltantes.
-  - En todos los casos, los faltantes se rellenan estandarizadamente con `-1` para NSE y nulo para INSE sin imputar datos artificiales, y se excluyen puntualmente en las pruebas de hipótesis correspondientes reportando el porcentaje de cobertura.
-- **Diferenciación de Calendarios:** Se confirmó la fuerte dispersión entre el primer semestre (Calendario B, con mayor proporción de instituciones privadas y promedios globales más altos) y el segundo semestre (Calendario A, predominantemente oficial).
+Las funciones de apoyo (conexión al DW, pruebas estadísticas y gráficos) están en `notebooks/analisis_utils.py`. Todas las cifras del texto se calculan al ejecutar: si el DW cambia, los informes se actualizan solos.
 
-### 7.2. Dashboard y Hallazgos Socioeconómicos
+**Alcance.** Las pruebas formales cubren año/etapa, estrato, internet, computador, naturaleza del colegio y áreas. La educación de los padres y el NSE/INSE se exploran solo de forma descriptiva en el EDA (distribución por año y correlación del puntaje global con el INSE, r = 0,40, y con el NSE, r = 0,36); no tienen prueba de hipótesis ni brecha por año.
+
+### 7.1. Resumen del EDA
+- **Volumen y carga:** 149.959 registros (57.341 en 2019; 41.743 en 2020; 50.875 en 2025). Las filas del DW coinciden con las esperadas en los tres años y hay 0 llaves de estudiante repetidas.
+- **Rangos y atípicos:** 0 valores fuera de rango (global 0–500, áreas 0–100). Con la regla de Tukey, como máximo el 0,38 % del puntaje global de un año queda fuera de los límites y, en las áreas, como máximo el 3,54 % (Inglés 2020). No se eliminan: son resultados posibles.
+- **Faltantes:** 9 de las 18 columnas revisadas tienen datos faltantes o «No informa». Los mayores porcentajes son estrato en 2025 (26,1 %), internet en 2025 (25,6 %) y estrato en 2019 (25,4 %). En 2020 son solo 4–5,5 %.
+- **NSE/INSE:**
+  - En **2019** faltan en 12.899 de los 57.341 registros (~22,5 %, asociados en su mayoría a inscripciones individuales).
+  - En **2020**, el subconjunto `20201` no los publica desde la API, mientras que en `20202` (codificado como `20204`) sí están presentes con solo 1.490 faltantes (18,7 % en el año).
+  - En **2025** faltan el 25,2 %.
+  - En todos los casos los faltantes se rellenan con `-1` para NSE y nulo para INSE, sin imputar datos artificiales.
+- **Consistencia de categorías:** las únicas categorías que no aparecen en los tres años son los `No aplica` de colegio (naturaleza, calendario y área), ausentes en 2020 porque la API no trae inscripciones individuales (ver sección 5).
+- **Diferenciación de semestres:** el semestre 1 promedia 285,5 puntos y el semestre 2, 248,1. El calendario B es el 67,1 % del semestre 1 y el calendario A el 90,8 % del semestre 2: cada semestre reúne tipos de colegios distintos (entre quienes tienen colegio, en los semestres 1 casi todos son no oficiales y en los semestres 2 predominan los oficiales). Por eso el informe compara siempre dentro del mismo semestre.
+- **Composición que cambia entre años:** los estratos 1 y 2 juntos son el 46,8 % de los estudiantes en 2019, el 61,4 % en 2020 y el 42,0 % en 2025; también cambian el acceso a internet y el tipo de colegio.
+- **Relaciones:** el puntaje global se asocia más con Ciencias naturales (r = 0,92) y menos con Inglés (r = 0,79). Son asociaciones, no causas.
+- **Geografía:** 42 municipios; los 10 mayores reúnen el 84,7 % de los estudiantes y Cali sola el 49,1 %. Entre esos 10, Palmira tiene el mayor promedio (267,2) y Buenaventura el menor (220,2).
+
+### 7.2. Resultados del informe analítico
+
+**Cómo se lee.** Con decenas de miles de estudiantes casi cualquier diferencia sale «significativa», así que la decisión de si una diferencia importa se basa en el tamaño del efecto (*d* de Cohen: < 0,2 insignificante, < 0,5 pequeño, < 0,8 mediano; η²: < 0,01 insignificante, < 0,06 pequeño, < 0,14 mediano) y no solo en el valor *p* (Bonferroni en las comparaciones múltiples, α = 0,05). Para decir si una brecha **cambió** entre años se usan dos criterios a la vez: la interacción año × grupo (¿hay cambio estadístico?) y el rango de la brecha frente a un umbral de 0,1 desviaciones estándar del puntaje global (≈ 5,3 puntos). El texto de las conclusiones tiene tres resultados posibles:
+
+| Condición | Redacción del informe |
+|---|---|
+| Interacción significativa y rango ≥ 5,3 puntos | La brecha **cambió** entre años |
+| Interacción significativa y rango entre 4,0 y 5,3 puntos (≥ 75 % del umbral) | La brecha **varió poco**: cambio pequeño, no una brecha idéntica |
+| Cualquier otro caso | La brecha se mantuvo **prácticamente igual** |
+
+| Pregunta | Resultado | Lectura |
+|---|---|---|
+| **P1.** Puntaje global (mismo semestre) | Semestre 1: 284,4 (2019), 290,1 (2020), 284,1 (2025). Semestre 2: 245,1, 245,1 y 254,4. Frente a 2019 el cambio va de 0,0 a 9,3 puntos; η² = 0,0019 (sem. 1) y 0,0076 (sem. 2). | Todos los efectos son **insignificantes** (\|*d*\| ≤ 0,18). El mayor cambio es +9,3 puntos en el semestre 2 de 2025 (*d* = 0,18). |
+| **P2.** Estrato 6 − estrato 1 | 59,4 (2019), 55,6 (2020) y 39,5 (2025) puntos; *d* = 1,24, 1,26 y 0,76. η² del estrato: 0,077, 0,076 y 0,027. | La brecha pasó de **grande** a **mediana** y el estrato explica menos variación (de efecto mediano a pequeño). Es la única brecha que **cambió** de forma relevante (casi 20 puntos). |
+| **P3.** Internet (con − sin) | 28,0, 30,9 y 25,7 puntos; *d* = 0,55, 0,65 y 0,48. | **Varió poco** (5,2 puntos, cerca del límite de 5,3). Efecto mediano/pequeño. |
+| **P3.** Computador (con − sin) | 26,0, 28,2 y 27,9 puntos; *d* = 0,51, 0,60 y 0,53. | **Prácticamente igual** (2,2 puntos; la interacción es significativa, *p* = 0,004, pero el cambio es pequeño). Efecto mediano. |
+| **P4.** No oficial − oficial | 25,3, 26,9 y 24,1 puntos; *d* = 0,49, 0,56 y 0,45. | **Prácticamente igual** (2,8 puntos). Se excluyen 18.640 estudiantes con inscripción individual. Está mezclada con el estrato: no se atribuye al tipo de colegio por sí solo. |
+| **P5.** Áreas (cambio vs 2019) | 2025: Inglés +3,87 (*d* = 0,28), Ciencias naturales +1,96, Matemáticas +1,46, Lectura crítica +1,42, Sociales +1,07. 2020: entre −1,55 (Inglés) y +0,56 (Sociales). | Solo Inglés 2025 llega a efecto **pequeño**; el resto es insignificante (*d* ≤ 0,17). |
+
+![Brechas en el puntaje global por año](reports/figuras/resumen_brechas.png)
+
+*Figura 4. Brecha en el puntaje global por año (diferencia de medias con IC 95 %) para estrato, internet, computador y naturaleza del colegio. Se genera al ejecutar `informe_saber11.ipynb`.*
+
+**Conclusión general.** Después de comparar el mismo semestre, el puntaje global de 2025 no es relevantemente distinto del de 2019 (el cambio más grande tiene *d* = 0,18) y la mejora más clara está en Inglés. Las brechas por internet, computador y tipo de colegio se mantienen entre 24 y 31 puntos (efectos pequeños a medianos) y la de estrato es la mayor, pero se redujo en 2025. Todo es asociación: el estudio es observacional.
+
+### 7.3. Limitaciones
+- **Estudio observacional:** las diferencias son asociaciones; no se puede afirmar que la pandemia causó un cambio.
+- **Composición distinta por semestre:** los años no tienen la misma proporción de estudiantes por semestre y los semestres difieren mucho; por eso los promedios anuales (253,1; 251,9; 261,4) no son comparables por sí solos.
+- **Datos de 2020 (API):** el segundo periodo viene como `20204` y se agrupó con `20202`; además la fuente no incluye estudiantes con inscripción individual (sin colegio), que sí están en 2019 y 2025.
+- **Faltantes distintos por año:** en 2019 y 2025 cerca del 25 % (22–26 %) no informa estrato, internet o computador, y en 2020 solo el 4–5,5 %. Una parte es estructural: las inscripciones individuales (18,8 % de 2019 y 15,4 % de 2025) casi no diligencian el cuestionario socioeconómico (en 2019, solo 5 de 10.784) y la API de 2020 no las trae. Aun así, si quienes no informan son distintos del resto, las brechas entre años pueden verse afectadas.
+- **Exclusión de «No informa»:** quienes no informan estrato, internet o computador se excluyen de la brecha correspondiente (cada sección del informe indica el porcentaje excluido).
+- **Significancia y tamaño:** con muestras grandes un *p* pequeño no implica una diferencia importante; por eso se reporta el tamaño del efecto. El umbral de 0,1 desviaciones estándar para decir que una brecha cambió es un criterio práctico del informe, no una regla estadística universal.
+- **Comparabilidad de ediciones:** se asume que los puntajes de 2019, 2020 y 2025 están en la misma escala (0–500).
+
+### 7.4. Dashboard y Hallazgos Socioeconómicos
 El dashboard interactivo fue construido consultando directamente el Data Warehouse validado (`saber11_dw_e2`) y exportado a `dashboards/saber11_valle.html`.
 
 ![Resultados Generales y Promedio por Área](docs/dashboard_01.png)
-*Figura 4. Indicadores globales y promedio de puntaje por área antes (2019), durante (2020) y después (2025) de la pandemia.*
+*Figura 5. Indicadores globales y promedio de puntaje por área antes (2019), durante (2020) y después (2025) de la pandemia.*
 
 ![Análisis Socioeconómico y Conectividad](docs/dashboard_02.png)
-*Figura 5. Relación del puntaje global con estrato, naturaleza del colegio, acceso a internet y tabla resumen por periodo.*
+*Figura 6. Relación del puntaje global con estrato, naturaleza del colegio, acceso a internet y tabla resumen por periodo.*
 
 #### Principales Insights Extraídos:
-1. **Comportamiento Temporal y Pandemia:**
-   - **Puntaje Promedio Global Consolidado:** El rendimiento global promedio se ubicó en **267 puntos**.
-   - **Efecto de la Estacionalidad:** Se mantiene una brecha marcada por semestre: los periodos `20191` (284,37), `20201` (290,12) y `20251` (284,07) muestran promedios sensiblemente superiores a `20192` (245,14), `20202` (245,13) y `20252` (254,40).
-   - **Recuperación Post-Pandemia:** En 2025 (después de la pandemia), se destaca una marcada mejora en el área de **Inglés** (superando los 54 puntos promedio) y leves incrementos en **Lectura Crítica** y **Matemáticas** comparado con los niveles de 2019 y 2020.
+1. **Comportamiento Temporal y Semestre:**
+   - **Puntaje Promedio Global Consolidado:** el promedio de los 149.959 registros es de **255,6 puntos** (253,1 en 2019, 251,9 en 2020 y 261,4 en 2025; estos promedios anuales no son comparables por sí solos porque cada año mezcla proporciones distintas de semestres).
+   - **Efecto del semestre (composición, no estacionalidad):** los periodos `20191` (284,37), `20201` (290,12) y `20251` (284,07) promedian bastante más que `20192` (245,14), `20202` (245,13) y `20252` (254,40). La diferencia refleja el tipo de colegio de cada semestre (calendario B, mayoritariamente no oficial, en el primero; calendario A, mayoritariamente oficial, en el segundo), no una estacionalidad del examen.
+   - **Diferencias en 2025 frente a 2019:** todas las áreas suben, pero solo **Inglés** lo hace con efecto pequeño (50,2 → 48,7 → 54,1 en 2019, 2020 y 2025; *d* = 0,28). Ciencias naturales (+1,96), Matemáticas (+1,46) y Lectura crítica (+1,42) aumentan con efectos insignificantes. Son diferencias observadas, no una «recuperación» atribuible a una causa.
 
 2. **Brecha Digital (Acceso a Internet):**
-   - El acceso a internet en el hogar demuestra ser un factor determinante en el rendimiento académico: los estudiantes con acceso a internet obtuvieron promedios globales consistentemente superiores (~267 puntos en 2025) frente a aquellos sin conectividad (~241 puntos).
+   - Los estudiantes con internet en el hogar obtienen promedios más altos en los tres años (~267 puntos en 2025 frente a ~241 sin conectividad; brecha de 25,7 puntos, *d* = 0,48). Es la brecha de internet más baja de los tres años (28,0 en 2019 y 30,9 en 2020). Es una asociación que se mezcla con el nivel socioeconómico del hogar, no un efecto causal.
 
 3. **Estratificación y Brecha Institucional:**
-   - **Estrato Socioeconómico:** Existe una relación directamente proporcional entre el estrato y el rendimiento. Los estudiantes de Estratos 5 y 6 superan los **290 puntos** en promedio, mientras que en Estratos 1 y 2 los promedios oscilan entre **235 y 250 puntos**.
-   - **Naturaleza del Colegio:** La brecha entre colegios **No Oficiales (Privados)** y **Oficiales (Públicos)** se mantuvo en el tiempo. En 2025, la educación privada alcanzó un promedio cercano a 277 puntos, frente a los 253 puntos de la educación pública.
+   - **Estrato Socioeconómico:** el puntaje crece con el estrato. Los estratos 5 y 6 se ubican alrededor de 289–296 puntos, mientras que los estratos 1 y 2 van de ~237 a ~264 según el año (valores aproximados, tomados del gráfico del informe). La brecha entre el estrato 6 y el 1 se redujo de 59,4 puntos en 2019 a 39,5 en 2025, sobre todo porque los estratos 1 y 2 suben en 2025.
+   - **Naturaleza del Colegio:** la brecha entre colegios **No Oficiales (Privados)** y **Oficiales (Públicos)** se mantuvo en el tiempo (25,3, 26,9 y 24,1 puntos). En 2025, los colegios privados promedian cerca de 277 puntos frente a 253 de los públicos, diferencia que está mezclada con el estrato de las familias.
 
 ## 8. Modelo de datos
 
@@ -258,7 +300,7 @@ Modelo en estrella en MySQL (base `saber11_dw_e2`, script `sql/esquema_dw.sql`).
 
 ![Modelo de datos en estrella](docs/modelo_datos.png)
 
-*Figura 6. Modelo en estrella: la fact `fact_resultadossaber11` y sus cuatro dimensiones.*
+*Figura 7. Modelo en estrella: la fact `fact_resultadossaber11` y sus cuatro dimensiones.*
 
 | Tabla | Contenido | Llaves |
 |---|---|---|
@@ -296,22 +338,30 @@ Probado en Windows con PowerShell y Docker Desktop.
 ```powershell
   "SELECT t.anio, t.etapa_pandemia, COUNT(*) FROM fact_resultadossaber11 f JOIN dim_tiempo t USING (id_tiempo) GROUP BY t.anio, t.etapa_pandemia;" | docker compose exec -T mysql sh -c 'mysql -u$MYSQL_USER -p$MYSQL_PASSWORD saber11_dw_e2'
 ```
-9.Generar el informe analítico en HTML (opcional pero recomendado):
-Para ejecutar el notebook con las pruebas estadísticas de hipótesis directamente sobre el Data Warehouse y generar el informe HTML interactivo:
+9. Generar los informes analíticos en HTML (opcional pero recomendado). Los dos cuadernos leen directamente del Data Warehouse, así que el DAG debe haber terminado antes:
 
 ```powershell
+# EDA: calidad y distribución de los datos
+docker compose --profile analisis run --rm jupyter jupyter nbconvert --to html --execute --no-input eda_saber11.ipynb --output-dir /work/reports --output eda_saber11
+
+# Informe analítico: pruebas estadísticas de hipótesis
 docker compose --profile analisis run --rm jupyter jupyter nbconvert --to html --execute --no-input informe_saber11.ipynb --output-dir /work/reports --output informe_saber11
 ```
-El informe generado quedará disponible en reports/informe_saber11.html.
 
-## 10.Estructura
+Los resultados quedan en `reports/eda_saber11.html` y `reports/informe_saber11.html`, y las figuras en `reports/figuras/`. Para abrir los cuadernos de forma interactiva: `docker compose --profile analisis up -d jupyter` y entrar a http://localhost:8888 (token `saber11`). La imagen se define en `notebooks/Dockerfile` (JupyterLab, pandas, scipy, seaborn, SQLAlchemy y PyMySQL).
+
+Dentro de Docker, el servicio `jupyter` toma las credenciales del `.env` y `docker-compose.yml` le fija `MYSQL_HOST=mysql` y `MYSQL_PORT=3306`; monta `notebooks/` y `reports/`, por eso los HTML y las figuras quedan en tu carpeta del proyecto. Fuera de Docker, `analisis_utils.conectar()` lee `MYSQL_USER`, `MYSQL_PASSWORD`, `MYSQL_HOST`, `MYSQL_PORT` y `DW_DB_NAME` (por defecto `saber11_dw_e2`); desde el equipo anfitrión el MySQL del proyecto está en `localhost:3307`.
+
+Pruebas unitarias (limpieza, rama CSV y funciones estadísticas del informe): `pytest -q` desde la raíz del proyecto.
+
+## 10. Estructura
 ```
 dags/        DAG de Airflow (tareas y orquestación)
 etl/         Definición de esquema, limpieza compartida, ramas (api, csv, db), merge, calidad y carga
 sql/         Esquemas DDL para el Data Warehouse y bases de datos
 docs/        Fichas técnicas de las fuentes, diagramas de arquitectura y modelos
-notebooks/   EDA interactivo, informe analítico (`informe_saber11.ipynb`), utilidades y Dockerfile
+notebooks/   EDA (eda_saber11.ipynb), informe analítico (informe_saber11.ipynb), utilidades (analisis_utils.py) y Dockerfile de Jupyter
 dashboards/  Tableros HTML interactivos alimentados directamente del DW
-reports/     Informe analítico exportado en HTML (`informe_saber11.html`) y figuras generadas
-tests/       Pruebas unitarias con pytest para la limpieza y funciones estadísticas
+reports/     Informe analítico (informe_saber11.html), EDA (eda_saber11.html) y figuras generadas (figuras/)
+tests/       Pruebas unitarias con pytest: limpieza, rama CSV y funciones estadísticas del informe
 ```
