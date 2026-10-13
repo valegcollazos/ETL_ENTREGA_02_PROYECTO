@@ -94,6 +94,8 @@ def num(x, dec: int = 1) -> str:
     """Número con formato español: 1.234,5"""
     if x is None or (isinstance(x, float) and np.isnan(x)):
         return "–"
+    if round(float(x), dec) == 0:
+        x = 0.0                      # evita "-0,0"
     s = f"{x:,.{dec}f}"
     return s.replace(",", "§").replace(".", ",").replace("§", ".")
 
@@ -312,3 +314,91 @@ def grafico_brechas(ax, familias: dict[str, pd.DataFrame]) -> None:
     ax.set_ylabel("Brecha en puntaje global (puntos)")
     ax.grid(axis="x", visible=False)
     ax.legend(title="Año", frameon=False)
+
+
+# --------------------------------------------------------------------------- EDA (calidad y distribuciones)
+SQL_EDA = """
+SELECT f.id_resultado, f.bk_estu_consecutivo,
+       t.periodo, t.anio, t.semestre, t.etapa_pandemia,
+       f.punt_global, f.punt_matematicas, f.punt_lectura_critica, f.punt_naturales,
+       f.punt_sociales_ciudadanas, f.punt_ingles, f.estu_inse_individual AS inse,
+       c.cole_cod_icfes, c.cole_naturaleza, c.cole_calendario, c.cole_area_ubicacion,
+       u.estu_depto_reside AS depto, u.estu_mcpio_reside AS municipio,
+       s.fami_estratovivienda AS estrato, s.fami_educacionpadre AS educ_padre,
+       s.fami_educacionmadre AS educ_madre, s.fami_tieneinternet AS internet,
+       s.fami_tienecomputador AS computador, s.fami_personashogar AS personas_hogar,
+       s.estu_nse_individual AS nse
+FROM fact_resultadossaber11 f
+JOIN dim_tiempo t          ON t.id_tiempo = f.id_tiempo
+JOIN dim_colegio c         ON c.id_colegio = f.id_colegio
+JOIN dim_ubicacion u       ON u.id_ubicacion = f.id_ubicacion
+JOIN dim_socioeconomica s  ON s.id_socioeconomico = f.id_socioeconomico
+"""
+
+SQL_TABLAS = """
+SELECT 'fact_resultadossaber11' AS tabla, COUNT(*) AS filas FROM fact_resultadossaber11
+UNION ALL SELECT 'dim_tiempo', COUNT(*) FROM dim_tiempo
+UNION ALL SELECT 'dim_colegio', COUNT(*) FROM dim_colegio
+UNION ALL SELECT 'dim_ubicacion', COUNT(*) FROM dim_ubicacion
+UNION ALL SELECT 'dim_socioeconomica', COUNT(*) FROM dim_socioeconomica
+"""
+
+
+def cargar_dw_eda(con) -> pd.DataFrame:
+    """Un registro por estudiante con todas las columnas útiles para el EDA."""
+    df = pd.read_sql_query(SQL_EDA, con)
+    if df.empty:
+        raise RuntimeError("El DW está vacío: corre primero el DAG saber11_valle_etl.")
+    for col in ("anio", "semestre"):
+        df[col] = df[col].astype("Int64")
+    for col in ["punt_global", *AREAS, "inse", "nse"]:
+        df[col] = pd.to_numeric(df[col], errors="coerce")
+    return df
+
+
+def conteo_tablas(con) -> pd.DataFrame:
+    return pd.read_sql_query(SQL_TABLAS, con)
+
+
+def sin_dato_por_anio(df: pd.DataFrame, columnas) -> pd.DataFrame:
+    """% de registros sin dato por columna y año: nulo real + 'No informa' (+ NSE = -1).
+    'No aplica' se cuenta aparte: es un valor estructural (p. ej. inscripción individual), no un faltante."""
+    filas = []
+    for col in columnas:
+        for anio, g in df.groupby("anio", observed=True):
+            x = g[col]
+            nulo = float(x.isna().mean() * 100)
+            if pd.api.types.is_numeric_dtype(x):
+                no_inf = float((x == -1).mean() * 100) if col == "nse" else 0.0
+                no_ap = 0.0
+            else:
+                no_inf = float((x == "No informa").mean() * 100)
+                no_ap = float((x == "No aplica").mean() * 100)
+            filas.append(dict(columna=col, anio=int(anio), nulo=nulo, no_informa=no_inf,
+                              no_aplica=no_ap, sin_dato=nulo + no_inf))
+    return pd.DataFrame(filas)
+
+
+def outliers_iqr(x: pd.Series) -> dict:
+    """Regla de Tukey: fuera de [Q1 - 1,5·IQR ; Q3 + 1,5·IQR]."""
+    x = x.dropna()
+    q1, q3 = x.quantile(0.25), x.quantile(0.75)
+    iqr = q3 - q1
+    lo, hi = q1 - 1.5 * iqr, q3 + 1.5 * iqr
+    n = int(((x < lo) | (x > hi)).sum())
+    return dict(n=len(x), atipicos=n, pct=100 * n / len(x) if len(x) else np.nan, lim_inf=lo, lim_sup=hi)
+
+
+def categorias_no_comunes(df: pd.DataFrame, columnas) -> pd.DataFrame:
+    """Categorías que aparecen en algunos años pero no en todos (cambios de redacción entre fuentes)."""
+    anios = sorted(int(a) for a in df["anio"].dropna().unique())
+    filas = []
+    for col in columnas:
+        presentes = {a: set(df.loc[df["anio"] == a, col].dropna().unique()) for a in anios}
+        todas = set().union(*presentes.values())
+        for cat in sorted(todas, key=str):
+            donde = [a for a in anios if cat in presentes[a]]
+            if len(donde) < len(anios):
+                filas.append(dict(columna=col, categoria=cat, presente_en=", ".join(map(str, donde)),
+                                  ausente_en=", ".join(str(a) for a in anios if a not in donde)))
+    return pd.DataFrame(filas, columns=["columna", "categoria", "presente_en", "ausente_en"])
