@@ -156,10 +156,6 @@ Ficha técnica completa en `docs/ficha_fuente_csv.md`.
 
 ---
 
-### 4.6. Decisiones pendientes para el esquema v2
-- **Homologación de nombres geográficos:** Estandarización de variaciones entre periodos (ej. `VALLE` vs `VALLE DEL CAUCA`, o `CALI` vs `SANTIAGO DE CALI`) para evitar duplicaciones en `dim_ubicacion`.
-- **Estandarización de variables categóricas:** Normalización de diferencias ortográficas o de redacción entre años (`Si` vs `Sí`, categorías de educación de los padres) para optimizar la agregación visual en tableros.
-
 ## 5. API
 
 La rama API trae Saber 11 de 2020 desde datos.gov.co, la plataforma de datos abiertos del Estado. Esta plataforma publica cada conjunto en una dirección con forma **`https://www.datos.gov.co/resource/<id>.json`**, y permite pedir solo las filas que se necesitan en lugar de bajar el archivo completo.
