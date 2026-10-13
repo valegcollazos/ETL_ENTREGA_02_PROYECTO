@@ -15,7 +15,7 @@ log = logging.getLogger(__name__)
 ARCHIVO_RESULTADO = "resultado_gx.json"
 
 # ojo: los años de cada fuente y cuántas filas mínimo esperamos del staging de cada uno
-MIN_FILAS_POR_ANIO = {2019: 1_000, 2020: 40_000, 2025: 45_000}
+MIN_FILAS_POR_ANIO = {2019: 50_000, 2020: 40_000, 2025: 45_000}
 
 # ojo: el periodo solo puede terminar en 1 o 2 (el 20204 de la API se corrige en transform_api)
 REGEX_PERIODO = r"^(?:2019|2020|2025)[12]$"
