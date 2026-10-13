@@ -59,24 +59,25 @@ Parámetros: `@daily` técnico (los datos son históricos: la ejecución diaria 
 ## 4.Decisiones de transformación.
 
 ### 4.1. Estructura común del dataset unificado
-Las tres fuentes se llevan a las mismas 25 columnas, en este orden y con estos tipos, antes de apilarlas. Esta estructura está definida en `etl/esquema.py` y `validar_esquema()` la verifica en cada rama y en el `merge`.
 
-|| Grupo | Columna | Tipo | Regla |
-|---|---|---|---|
-| Identificación | estu_consecutivo | texto | nunca nulo, sin duplicados |
-| | periodo | texto | formato AAAAS (ej. 20191), nunca nulo |
-| | anio | entero | primeros 4 dígitos de periodo |
-| | semestre | entero | último dígito de periodo |
-| Ubicación | estu_depto_reside, estu_mcpio_reside | texto | residencia del estudiante |
-| Colegio | cole_codigo_icfes | entero | -1 = inscripción individual (se renombra a `cole_cod_icfes` en la Fact) |
-| | cole_nombre_establecimiento, cole_naturaleza, cole_calendario, cole_area_ubicacion | texto | |
-| Socioeconómicas | fami_estratovivienda, fami_educacionpadre, fami_educacionmadre, fami_tieneinternet, fami_tienecomputador, fami_personashogar | texto | |
-| | estu_nse_individual | entero | 1 a 4; -1 si falta |
-| | estu_inse_individual | decimal | nulo si falta |
-| Resultados | punt_global | entero | 0 a 500, puede ser nulo |
-| | punt_matematicas, punt_lectura_critica, punt_c_naturales, punt_sociales_ciudadanas, punt_ingles | entero | 0 a 100, pueden ser nulos (se renombra `punt_c_naturales` a `punt_naturales` en la Fact) |
+Las tres fuentes se llevan a las mismas 25 columnas, en este orden y con estos tipos, antes de apilarlas. Esta estructura está definida en `etl/esquema.py` y `validar_esquema()` la verifica en cada rama y en el *merge*.
 
-Filtros: solo Valle del Cauca (comparando `UPPER(TRIM(estu_depto_reside))`) y solo los periodos del año de cada fuente, aplicados al leer. Si una fuente no trae una columna (por ejemplo NSE/INSE en el subconjunto `20201`), se crea en nulo; no se inventan valores.
+| Grupo | Columna | Tipo | Regla |
+| :--- | :--- | :--- | :--- |
+| **Identificación** | `estu_consecutivo` | Texto | Nunca nulo, sin duplicados. |
+| | `periodo` | Texto | Formato `AAAAS` (ej. `20191`), nunca nulo. |
+| | `anio` | Entero | Primeros 4 dígitos de `periodo`. |
+| | `semestre` | Entero | Último dígito de `periodo`. |
+| **Ubicación** | `estu_depto_reside`, `estu_mcpio_reside` | Texto | Residencia del estudiante. |
+| **Colegio** | `cole_codigo_icfes` | Entero | `-1` = inscripción individual (se renombra a `cole_cod_icfes` en la Fact). |
+| | `cole_nombre_establecimiento`, `cole_naturaleza`, `cole_calendario`, `cole_area_ubicacion` | Texto | Información del establecimiento educativo. |
+| **Socioeconómicas** | `fami_estratovivienda`, `fami_educacionpadre`, `fami_educacionmadre`, `fami_tieneinternet`, `fami_tienecomputador`, `fami_personashogar` | Texto | Variables de entorno socioeconómico. |
+| | `estu_nse_individual` | Entero | `1` a `4`; `-1` si falta. |
+| | `estu_inse_individual` | Decimal | Nulo si falta. |
+| **Resultados** | `punt_global` | Entero | `0` a `500`, puede ser nulo. |
+| | `punt_matematicas`, `punt_lectura_critica`, `punt_c_naturales`, `punt_sociales_ciudadanas`, `punt_ingles` | Entero | `0` a `100`, pueden ser nulos (se renombra `punt_c_naturales` a `punt_naturales` en la Fact). |
+
+**Filtros:** Solo Valle del Cauca (comparando `UPPER(TRIM(estu_depto_reside))`) y solo los periodos del año de cada fuente, aplicados al leer. Si una fuente no trae una columna (por ejemplo NSE/INSE en el subconjunto `20201`), se crea en nulo; no se inventan valores.
 
 ### 4.2. Limpieza compartida (`etl/limpieza.py`)
 Es la limpieza de la entrega 1 convertida en una sola función, `limpiar()`, que las tres ramas usan como último paso:
