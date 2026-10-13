@@ -359,6 +359,7 @@ Pruebas unitarias (limpieza, rama CSV y funciones estadísticas del informe): `p
 dags/        DAG de Airflow (tareas y orquestación)
 etl/         Definición de esquema, limpieza compartida, ramas (api, csv, db), merge, calidad y carga
 sql/         Esquemas DDL para el Data Warehouse y bases de datos
+scripts/     Utilidades: generar_muestra_referencia.py crea docs/muestra_referencia.parquet (200 filas de un staging válido, con casos especiales) para probar la validación sin correr el pipeline completo
 docs/        Fichas técnicas de las fuentes, diagramas de arquitectura y modelos
 notebooks/   EDA (eda_saber11.ipynb), informe analítico (informe_saber11.ipynb), utilidades (analisis_utils.py) y Dockerfile de Jupyter
 dashboards/  Tableros HTML interactivos alimentados directamente del DW
