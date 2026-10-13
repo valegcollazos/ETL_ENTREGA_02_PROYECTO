@@ -123,7 +123,7 @@ Ficha técnica completa en `docs/ficha_fuente_csv.md`.
 | Tras filtro Valle + 2019 (`read_csv`) | 57.341 filas (20191: 11.624 · 20192: 45.717) |
 | `staging_csv.parquet` (`transform_csv`) | 57.341 filas, 25 columnas |
 
-#### Flujo de Transformaciones (en orden de ejecución)
+#### Flujo de Transformaciones 
 
 **`read_csv`** (`2019.csv` → `raw_csv.parquet`)
 1. **Lectura por bloques:** Procesamiento en bloques de 100.000 filas para optimizar memoria (máximo 216 MB de uso, ~8 s).
@@ -183,8 +183,6 @@ Se usan las dos y se unen en **raw_api.parquet**.
 **Decisión sobre periodo en Datos del 20202**
 El conjunto 2020-2 publica el periodo como **`20204`**; la estructura de las tres ramas solo admite semestres 1 o 2 y ninguna de las dos publicaciones trae un **`20202`**, así que la corrección que tomamos no genera ninguna alteración con ningún dato. Nosotros decidimos tratar el **`20204`** como el segundo semestre de 2020 y reasignarlo a **`20202`**, la fuente no explica qué significa el 4, por ello nuestra decisión; el cambio se hace en **`transform_api`**, antes de la limpieza compartida, y **`raw_api.parquet`** conserva el valor original. La ficha de la fuente está en **`docs/ficha_fuente_api.md`**.
 
----
-
 ## 6. Great Expectations
 
 La tarea **`quality_check`** revisa **`staging_merged.parquet`** con Great Expectations (usamos la versión 1.24.0, que es compatible con la imagen de Airflow del proyecto). Aquí se define un grupo de reglas y un Checkpoint que la ejecuta; si alguna regla falla, la tarea termina con error, **`load`** no corre y los archivos de staging se conservan para revisarlos. El resultado de cada ejecución queda en **`resultado_gx.json`**, dentro de la carpeta de staging.
@@ -198,28 +196,19 @@ La tarea **`quality_check`** revisa **`staging_merged.parquet`** con Great Expec
 | Ubicación | **`estu_depto_reside`** empieza por VALLE | Solo estamos evaluando Valle del Cauca |
 | Puntajes | **`punt_global`** entre 0 y 500; las otras cinco pruebas entre 0 y 100 | Fuera de ese rango el dato es imposible. Los nulos no cuentan |
 | Socioeconómicas | NSE entre -1 y 4; internet y computador solo **`Si`**, **`No`** o **`No informa`** | Mantiene las categorías cerradas que usan las dimensiones |
-| Colegio | **`cole_codigo_icfes`** mayor o igual a -1 | -1 es el código de inscripción individual |
+| Colegio | **`cole_codigo_icfes`** mayor o igual a -1; **`cole_area_ubicacion`** solo **`URBANA`**, **`RURAL`** o **`No aplica`**; **`cole_calendario`** solo **`A`**, **`B`**, **`OTRO`** o **`No aplica`** | -1 es el código de inscripción individual; **`URBANO`** se homologa a **`URBANA`** en la limpieza compartida, y las categorías cerradas evitan que se creen dimensiones duplicadas |
 
-**Mínimos de filas por año** (`MIN_FILAS_POR_ANIO` en `quality_check.py`):
-- 2019: **1.000** filas
-- 2020: **40.000** filas
-- 2025: **45.000** filas
 
-Fijados cerca del conteo esperado de cada fuente para detectar cargas incompletas sin que un descarte normal de duplicados dispare la regla de calidad.
+**Mínimos de filas por año**
+`MIN_FILAS_POR_ANIO` en `quality_check.py`:
+- 2019: **50.000** filas VS el real es 57.341
+- 2020: **40.000** filas VS el real es 41.743
+- 2025: **45.000** filas VS el real es 50.875
+
+Cada mínimo se fijó un poco por debajo del conteo real de su fuente, para detectar cargas incompletas sin que un descarte normal de duplicados dispare la regla de calidad.
 
 **Integración y generación del informe analítico**
 Una vez que Great Expectations valida el archivo unificado `staging_merged.parquet`, los datos pasan a la tarea de carga en MySQL (`load`). Para responder a la retroalimentación técnica de la entrega anterior, el flujo activa la tarea **`dashboard_update`** y permite ejecutar en Docker el informe analítico completo (`reports/informe_saber11.html`) con las pruebas estadísticas formales sobre los datos validados del Data Warehouse.
-
-## 7. Análisis Exploratorio de Datos (EDA) e Informe Analítico
-
-El notebook interactivo (`notebooks/informe_saber11.ipynb`) y el reporte HTML generado (`reports/informe_saber11.html`) se alimentan directamente de los **149.959 registros** validados en el Data Warehouse (`saber11_dw_e2`).
-
-### Hallazgos Principales y Pruebas Estadísticas de Hipótesis:
-1. **Comparación Interanual (P1):** Se evaluaron las variaciones por semestre entre 2019, 2020 y 2025 mediante **ANOVA de Welch** y comparaciones por pares con corrección de Bonferroni.
-2. **Brecha Socioeconómica (P2):** La diferencia entre el Estrato 6 y el Estrato 1 es estadísticamente significativa ($p < 0,001$). El análisis de varianza ($\eta^2$) confirma que el nivel socioeconómico explica una porción sustancial del desempeño.
-3. **Brecha Digital (P3):** Se validó mediante **Prueba t de Welch** la ventaja significativa de los estudiantes con acceso a internet y computador en el hogar ($p < 0,001$).
-4. **Naturaleza del Colegio (P4):** Los colegios No Oficiales presentan un promedio superior a los Oficiales ($p < 0,001$), brecha asociada a factores socioeconómicos subyacentes.
-5. **Desempeño por Áreas (P5):** Se cuantificó la variación del puntaje por materia respecto al baseline de 2019 usando el **$d$ de Cohen** para evaluar el tamaño del efecto.
 
 ## 7. Análisis Exploratorio de Datos (EDA) e Informe Analítico
 
