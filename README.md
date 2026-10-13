@@ -291,7 +291,7 @@ El dashboard interactivo fue construido consultando directamente el Data Warehou
    - Los estudiantes con internet en el hogar obtienen promedios más altos en los tres años (~267 puntos en 2025 frente a ~241 sin conectividad; brecha de 25,7 puntos, *d* = 0,48). Es la brecha de internet más baja de los tres años (28,0 en 2019 y 30,9 en 2020). Es una asociación que se mezcla con el nivel socioeconómico del hogar, no un efecto causal.
 
 3. **Estratificación y Brecha Institucional:**
-   - **Estrato Socioeconómico:** el puntaje crece con el estrato. Los estratos 5 y 6 se ubican alrededor de 289–296 puntos, mientras que los estratos 1 y 2 van de ~237 a ~264 según el año (valores aproximados, tomados del gráfico del informe). La brecha entre el estrato 6 y el 1 se redujo de 59,4 puntos en 2019 a 39,5 en 2025, sobre todo porque los estratos 1 y 2 suben en 2025.
+   - **Estrato Socioeconómico:** el puntaje crece con el estrato. Los estratos 5 y 6 promedian entre 288,9 y 296,2 puntos según el año, mientras que los estratos 1 y 2 van de 236,9 (estrato 1, 2019) a 263,8 (estrato 2, 2025). La brecha entre el estrato 6 y el 1 se redujo de 59,4 puntos en 2019 a 39,5 en 2025, sobre todo porque los estratos 1 y 2 suben en 2025.
    - **Naturaleza del Colegio:** la brecha entre colegios **No Oficiales (Privados)** y **Oficiales (Públicos)** se mantuvo en el tiempo (25,3, 26,9 y 24,1 puntos). En 2025, los colegios privados promedian cerca de 277 puntos frente a 253 de los públicos, diferencia que está mezclada con el estrato de las familias.
 
 ## 8. Modelo de datos
