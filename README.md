@@ -82,6 +82,7 @@ Las tres fuentes se llevan a las mismas 25 columnas, en este orden y con estos t
 ### 4.2. Limpieza compartida (`etl/limpieza.py`)
 Es la limpieza de la entrega 1 convertida en una sola función, `limpiar()`, que las tres ramas usan como último paso:
 - Texto: repara caracteres corruptos con ftfy, quita espacios y escribe los faltantes como `No informa`. Valores como `nan`, `None` o `NULL` escritos como texto se tratan como faltantes.
+- Homologación de etiquetas: el área del colegio llega como `URBANO` o `URBANA` según la fuente y se unifica a `URBANA` (`EQUIVALENCIAS` en `etl/esquema.py`).
 - Estudiantes sin colegio: código `-1`, nombre `Sin colegio (inscripción individual)` y `No aplica` en naturaleza, calendario y área.
 - NSE faltante = `-1`; INSE faltante = nulo.
 - Deduplicación por `estu_consecutivo`, priorizando el registro con colegio sobre la inscripción individual.
@@ -93,15 +94,15 @@ Es la limpieza de la entrega 1 convertida en una sola función, `limpiar()`, que
 - DW nuevo (`saber11_dw_e2`) separado del nacional de la entrega 1, con `COLLATE utf8mb4_bin` para que "Si"/"Sí" o "VALLE"/"Valle" no se mezclen al cargar dimensiones, y `dim_tiempo.etapa_pandemia` (Antes / Durante / Después).
 
 ### 4.4. Resultados de la rama DB (2025)
-Ficha completa en `docs/ficha_fuente_db.md`.
+Ficha completa en `docs/ficha_fuente_db.md`. Las cifras de esta tabla corresponden a la rama DB **cargada sola** (solo 2025). Los totales del DW con los tres años (149.959 filas en la fact) están en la sección 8.
 
 | Etapa | Resultado |
 |---|---|
 | Tabla `raw_saber11` (nacional, entrega 1) | 661.891 filas |
 | Tras filtro Valle + 2025 (`read_db`) | 50.875 filas (20251: 11.947 · 20252: 38.928) |
 | `staging_db.parquet` (`transform_db`) | 50.875 filas, 25 columnas |
-| Fact en el DW tras `load` | 50.875 filas |
-| Dimensiones | `dim_colegio` 1.798 · `dim_ubicacion` 42 · `dim_socioeconomica` 16.582 · `dim_tiempo` 6 |
+| Fact en el DW tras `load` (solo 2025) | 50.875 filas |
+| Dimensiones (solo 2025) | `dim_colegio` 1.267 · `dim_ubicacion` 42 · `dim_socioeconomica` 8.699 · `dim_tiempo` 2 |
 
 Hallazgos: 7.856 estudiantes sin colegio (inscripción individual), 0 filas con llaves nulas, 0 duplicados y 0 dobles inscripciones; 376 colegios con atributos distintos entre registros (aviso informativo de la limpieza).
 
@@ -115,7 +116,7 @@ Pruebas realizadas:
 ### 4.5. Resultados de la rama CSV (2019)
 
 Ficha técnica completa en `docs/ficha_fuente_csv.md`.  
-**Fuente original:** `2019.csv` (Datos Abiertos ICFES Saber 11 2019, alcance nacional, 459,6 MB, 94 columnas).
+**Fuente original:** `2019.csv` (Datos Abiertos ICFES Saber 11 2019, alcance nacional, 459,6 MB, 94 columnas). Es el mismo archivo que la sección 9 llama `saber11_2019.csv`: ese es el nombre con el que se guarda en `data/input/`.
 
 | Etapa | Resultado |
 |---|---|
@@ -154,6 +155,14 @@ Ficha técnica completa en `docs/ficha_fuente_csv.md`.
 - 5 pruebas unitarias automatizadas en `tests/test_rama_csv.py` (cobertura de filtros, lectura multi-archivo, variables de entorno, manejo de errores, esquema y repetibilidad).
 - Repetibilidad e idempotencia confirmadas: ejecuciones sucesivas producen exactamente el mismo staging de 57.341 filas.
 
+### 4.6. Supuestos y archivos que no se versionan
+- **Periodo `20204`:** se trata como el segundo semestre de 2020 (35.442 filas de Valle); ver sección 5.
+- **Inscripción individual:** la API de 2020 no trae estudiantes sin colegio; por eso `No aplica` en naturaleza, calendario y área no aparece en 2020.
+- **NSE/INSE:** no se imputan; quedan como `-1` y nulo, y las pruebas los excluyen reportando la cobertura.
+- **Puntajes comparables:** se asume que 2019, 2020 y 2025 usan la misma escala (0–500 global, 0–100 por prueba).
+- **Datos históricos:** `@daily` es técnico; ejecutar de nuevo no cambia los datos.
+- **`.gitignore`:** no se suben `.env` (credenciales), `data/` (CSV de entrada y staging), `dumps/` (volcado de `raw_saber11`), `logs/` ni el entorno virtual. El CSV de 2019 y el volcado se descargan del Drive del equipo (sección 9). Las limitaciones del análisis están en 7.3.
+
 ---
 
 ## 5. API
@@ -179,12 +188,12 @@ Es la fuente oficial de los resultados de Saber 11 (ICFES) en datos abiertos, la
 - El token de aplicación **`SOCRATA_APP_TOKEN`** es opcional: sin token funciona, solo que más limitado; si se define, se envía en la cabecera **`X-App-Token`**.
 - Ante errores temporales o límites de uso la descarga se reintenta sola y adicionalmente, la tarea **`extract_api`** del DAG tiene 3 reintentos con espera progresiva.
 
-**Diferencias entre Datos del ICFES**
+**Diferencias entre los dos conjuntos del ICFES**
 - **a8xr-en99** no publica **`estu_nse_individual`** ni **`estu_inse_individual`**; se crean en nulo (NSE queda en **`-1`**).
 - La API omite los campos nulos en el JSON, y por eso **`raw_api.parquet`** tiene columnas que algunos registros no traen. Solo se conservan las 23 columnas del esquema.
 
-**Decisión sobre periodo en Datos del 20202**
-El conjunto 2020-2 publica el periodo como **`20204`**; la estructura de las tres ramas solo admite semestres 1 o 2 y ninguna de las dos publicaciones trae un **`20202`**, así que la corrección que tomamos no genera ninguna alteración con ningún dato. Nosotros decidimos tratar el **`20204`** como el segundo semestre de 2020 y reasignarlo a **`20202`**, la fuente no explica qué significa el 4, por ello nuestra decisión; el cambio se hace en **`transform_api`**, antes de la limpieza compartida, y **`raw_api.parquet`** conserva el valor original. La ficha de la fuente está en **`docs/ficha_fuente_api.md`**.
+**Decisión sobre el periodo `20204`**
+El conjunto del segundo semestre de 2020 publica el periodo como **`20204`**. La estructura de las tres ramas solo admite semestres 1 o 2, y ninguna de las dos publicaciones trae un **`20202`**, así que reasignarlo no pisa ni mezcla datos de otro periodo. La fuente no explica qué significa el 4; por eso decidimos tratar el **`20204`** como el segundo semestre de 2020 y reasignarlo a **`20202`**. El cambio se hace en **`transform_api`**, antes de la limpieza compartida, y **`raw_api.parquet`** conserva el valor original. La ficha de la fuente está en **`docs/ficha_fuente_api.md`**.
 
 ## 6. Great Expectations
 
@@ -236,7 +245,7 @@ Las funciones de apoyo (conexión al DW, pruebas estadísticas y gráficos) est�
   - En **2025** faltan el 25,2 %.
   - En todos los casos los faltantes se rellenan con `-1` para NSE y nulo para INSE, sin imputar datos artificiales.
 - **Consistencia de categorías:** las únicas categorías que no aparecen en los tres años son los `No aplica` de colegio (naturaleza, calendario y área), ausentes en 2020 porque la API no trae inscripciones individuales (ver sección 5).
-- **Diferenciación de semestres:** el semestre 1 promedia 285,5 puntos y el semestre 2, 248,1. El calendario B es el 67,1 % del semestre 1 y el calendario A el 90,8 % del semestre 2: cada semestre reúne tipos de colegios distintos (entre quienes tienen colegio, en los semestres 1 casi todos son no oficiales y en los semestres 2 predominan los oficiales). Por eso el informe compara siempre dentro del mismo semestre.
+- **Diferenciación de semestres:** el semestre 1 promedia 285,5 puntos y el semestre 2, 248,1. El calendario B es el 67,1 % del semestre 1 y el calendario A el 90,8 % del semestre 2: cada semestre reúne tipos de colegios distintos (entre quienes tienen colegio, en el semestre 1 casi todos son no oficiales y en el semestre 2 predominan los oficiales). Por eso el informe compara siempre dentro del mismo semestre.
 - **Composición que cambia entre años:** los estratos 1 y 2 juntos son el 46,8 % de los estudiantes en 2019, el 61,4 % en 2020 y el 42,0 % en 2025; también cambian el acceso a internet y el tipo de colegio.
 - **Relaciones:** el puntaje global se asocia más con Ciencias naturales (r = 0,92) y menos con Inglés (r = 0,79). Son asociaciones, no causas.
 - **Geografía:** 42 municipios; los 10 mayores reúnen el 84,7 % de los estudiantes y Cali sola el 49,1 %. Entre esos 10, Palmira tiene el mayor promedio (267,2) y Buenaventura el menor (220,2).
@@ -305,16 +314,16 @@ Modelo en estrella en MySQL (base `saber11_dw_e2`, script `sql/esquema_dw.sql`).
 
 *Figura 7. Modelo en estrella: la fact `fact_resultadossaber11` y sus cuatro dimensiones.*
 
-| Tabla | Contenido | Llaves |
-|---|---|---|
-| `fact_resultadossaber11` | Puntaje global, puntajes por prueba (matemáticas, lectura crítica, naturales, sociales y ciudadanas, inglés) e INSE individual | PK `id_resultado`; FK `id_colegio`, `id_ubicacion`, `id_socioeconomico`, `id_tiempo`; único `bk_estu_consecutivo` |
-| `dim_colegio` | Código ICFES, nombre, naturaleza, calendario y área de ubicación del colegio | PK `id_colegio`; único `cole_cod_icfes` (`-1` = inscripción individual) |
-| `dim_ubicacion` | Departamento y municipio de residencia del estudiante | PK `id_ubicacion`; único (departamento, municipio) |
-| `dim_socioeconomica` | Estrato, educación del padre y de la madre, internet, computador, personas en el hogar y NSE | PK `id_socioeconomico`; único la combinación de las 7 columnas |
-| `dim_tiempo` | Periodo, año, semestre y etapa de la pandemia (Antes / Durante / Después) | PK `id_tiempo`; único `periodo` |
+| Tabla | Contenido | Llaves | Filas (DW con los tres años) |
+|---|---|---|---|
+| `fact_resultadossaber11` | Puntaje global, puntajes por prueba (matemáticas, lectura crítica, naturales, sociales y ciudadanas, inglés) e INSE individual | PK `id_resultado`; FK `id_colegio`, `id_ubicacion`, `id_socioeconomico`, `id_tiempo`; único `bk_estu_consecutivo` | 149.959 |
+| `dim_colegio` | Código ICFES, nombre, naturaleza, calendario y área de ubicación del colegio | PK `id_colegio`; único `cole_cod_icfes` (`-1` = inscripción individual) | 1.798 |
+| `dim_ubicacion` | Departamento y municipio de residencia del estudiante | PK `id_ubicacion`; único (departamento, municipio) | 42 |
+| `dim_socioeconomica` | Estrato, educación del padre y de la madre, internet, computador, personas en el hogar y NSE | PK `id_socioeconomico`; único la combinación de las 7 columnas | 16.582 |
+| `dim_tiempo` | Periodo, año, semestre y etapa de la pandemia (Antes / Durante / Después) | PK `id_tiempo`; único `periodo` | 6 |
 
 **Decisiones de diseño:**
-- **Unicidad e Idempotencia:** Cada dimensión guarda una fila por combinación única de valores (restricción `UNIQUE`). La carga se realiza con `INSERT IGNORE`, garantizando que volver a ejecutar el pipeline no duplique registros ni modifique IDs ya existentes.
+- **Unicidad e Idempotencia:** Cada dimensión guarda una fila por combinación única de valores (restricción `UNIQUE`). La carga se realiza con `INSERT IGNORE`, garantizando que volver a ejecutar el pipeline no duplique registros ni modifique IDs ya existentes. Por lo mismo, si cambia una etiqueta de la limpieza hay que vaciar el DW antes de volver a ejecutar el DAG.
 - **Integridad Referencial Estricta:** La Fact table no admite llaves nulas hacia las dimensiones: si una fila de la tabla de hechos no encuentra su correspondiente combinación en alguna dimensión, la tarea `load` se detiene inmediatamente con un error explícito en vez de ignorar el registro.
 - **Colación de Texto:** Todas las tablas están definidas con `COLLATE utf8mb4_bin`. Esto evita que cadenas con diferencias ortográficas o de tildes (como `"Si"` / `"Sí"` o `"VALLE"` / `"Valle"`) se mezclen como equivalentes al insertar registros en las dimensiones.
 - **Clasificación Temporal:** La dimensión `dim_tiempo.etapa_pandemia` asigna la etiqueta correspondiente a cada periodo (`2019` → Antes, `2020` → Durante, `2025` → Después), optimizando los filtros del dashboard y del informe analítico.
@@ -326,7 +335,7 @@ Probado en Windows con PowerShell y Docker Desktop.
 1. Instalar Docker Desktop y Git.
 2. `git clone https://github.com/valegcollazos/ETL_ENTREGA_02_PROYECTO.git` y entrar a la carpeta.
 3. Crear el `.env`: `copy .env.example .env` (Mac/Linux: `cp .env.example .env`) y cambiar `MYSQL_ROOT_PASSWORD` y `MYSQL_PASSWORD`.
-4. Descargar el CSV 2019 (`saber11_2019.csv`, disponible en el enlace de Google Drive del equipo: [saber11_2019.csv en Google Drive](https://drive.google.com/file/d/1YxV7oSol4Bg1qfXvLV-L4b6J4tc1eMkd/view?usp=drive_link)), y guardarlo en la carpeta `data/input/saber11_2019.csv`. Viene en latin-1; `read_csv` lo detecta solo.
+4. Descargar el CSV 2019 (`saber11_2019.csv`, disponible en el enlace de Google Drive del equipo: [saber11_2019.csv en Google Drive](https://drive.google.com/file/d/1YxV7oSol4Bg1qfXvLV-L4b6J4tc1eMkd/view?usp=drive_link)), y guardarlo en la carpeta `data/input/saber11_2019.csv` (es el archivo `2019.csv` del ICFES descrito en 4.5, guardado con este nombre). Viene en latin-1; `read_csv` lo detecta solo.
 5. `docker compose up -d --build`. Con `docker compose ps`, `mysql` y `postgres` deben estar `healthy`; `airflow-init` termina solo con `exited (0)`. El MySQL del proyecto queda en el puerto 3307.
 6. Descargar [raw_saber11.zip](https://drive.google.com/file/d/1AN8FpzTootHtXAvN6IH5E8Vl9OXivSOs/view?usp=drive_link), descomprimirlo en `dumps/` y cargarlo siguiendo `docs/fuente_db_carga_raw.md`. Verificación (debe dar 661891):
 
@@ -351,7 +360,7 @@ docker compose --profile analisis run --rm jupyter jupyter nbconvert --to html -
 docker compose --profile analisis run --rm jupyter jupyter nbconvert --to html --execute --no-input informe_saber11.ipynb --output-dir /work/reports --output informe_saber11
 ```
 
-Los resultados quedan en `reports/eda_saber11.html` y `reports/informe_saber11.html`, y las figuras en `reports/figuras/`. Para abrir los cuadernos de forma interactiva: `docker compose --profile analisis up -d jupyter` y entrar a http://localhost:8888 (token `saber11`). La imagen se define en `notebooks/Dockerfile` (JupyterLab, pandas, scipy, seaborn, SQLAlchemy y PyMySQL).
+Los resultados quedan en `reports/eda_saber11.html` y `reports/informe_saber11.html`, y las figuras en `reports/figuras/`. Los `.ipynb` del repositorio se guardan sin salidas (en GitHub se ven vacíos); las tablas y los gráficos están en los HTML. Para abrir los cuadernos de forma interactiva: `docker compose --profile analisis up -d jupyter` y entrar a http://localhost:8888 (token `saber11`). La imagen se define en `notebooks/Dockerfile` (JupyterLab, pandas, scipy, seaborn, SQLAlchemy y PyMySQL).
 
 Dentro de Docker, el servicio `jupyter` toma las credenciales del `.env` y `docker-compose.yml` le fija `MYSQL_HOST=mysql` y `MYSQL_PORT=3306`; monta `notebooks/` y `reports/`, por eso los HTML y las figuras quedan en tu carpeta del proyecto. Fuera de Docker, `analisis_utils.conectar()` lee `MYSQL_USER`, `MYSQL_PASSWORD`, `MYSQL_HOST`, `MYSQL_PORT` y `DW_DB_NAME` (por defecto `saber11_dw_e2`); desde el equipo anfitrión el MySQL del proyecto está en `localhost:3307`.
 
