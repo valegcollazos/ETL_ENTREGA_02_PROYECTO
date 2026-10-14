@@ -25,6 +25,9 @@
 
 El conjunto de 2020 está partido en dos publicaciones de datos.gov.co, una por periodo, y ninguna cubre sola el año. Se usan las dos y se unen en un solo archivo. El filtro de Valle se hace dentro de la consulta para no descargar el país completo (más de 500.000 filas). Se usa la versión SODA2 (`/resource/<id>.json`) porque funciona sin autenticación; la versión `/api/v3/views/...` pide credenciales.
 
+Es la fuente oficial de los resultados de Saber 11 en datos abiertos, la misma de los otros dos años, y trae casi todas las columnas del esquema con el mismo nombre; solo hay que crear **`estu_nse_individual`** y **`estu_inse_individual`** en **a8xr-en99**. Además es el único origen que tenemos para 2020, deja filtrar Valle dentro de la consulta y funciona sin credenciales.
+
+
 ## Decisión sobre el periodo
 
 El conjunto 2020-2 publica el periodo como `20204`. El contrato del proyecto solo admite semestres 1 o 2, y ninguna de las dos publicaciones trae un `20202`. El grupo decidió tratar el `20204` como segundo semestre de 2020 (`20202`). Es un supuesto del equipo: la fuente no explica qué significa el 4. El cambio se hace en `transform_api` y la suite de calidad exige que el periodo termine en 1 o 2.
