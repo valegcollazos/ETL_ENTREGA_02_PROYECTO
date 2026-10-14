@@ -10,6 +10,8 @@
 - Cómo se relaciona el rendimiento con el estrato, la educación de los padres, el acceso a internet y computador, y el nivel socioeconómico (NSE) del estudiante.
 - Si esas diferencias socioeconómicas se mantuvieron, aumentaron o disminuyeron después de la pandemia.
 
+**Alcance del análisis formal.** Las pruebas formales y la brecha por año cubren estrato, internet, computador y tipo de colegio; la educación de los padres y el NSE se analizan de forma descriptiva (sección 7).
+
 ## 2. Arquitectura
 
 ![Diagrama de arquitectura](docs/arquitectura.png)
@@ -158,7 +160,7 @@ Ficha técnica completa en `docs/ficha_fuente_csv.md`.
 ### 4.6. Supuestos y archivos que no se versionan
 - **Periodo `20204`:** se trata como el segundo semestre de 2020 (35.442 filas de Valle); ver sección 5.
 - **Inscripción individual:** la API de 2020 no trae estudiantes sin colegio; por eso `No aplica` en naturaleza, calendario y área no aparece en 2020.
-- **NSE/INSE:** no se imputan; quedan como `-1` y nulo, y las pruebas los excluyen reportando la cobertura.
+- **NSE/INSE:** no se imputan; quedan como `-1` y nulo. No entran a las pruebas de hipótesis (solo al EDA, de forma descriptiva); su cobertura por año está en 7.1.
 - **Puntajes comparables:** se asume que 2019, 2020 y 2025 usan la misma escala (0–500 global, 0–100 por prueba).
 - **Datos históricos:** `@daily` es técnico; ejecutar de nuevo no cambia los datos.
 - **`.gitignore`:** no se suben `.env` (credenciales), `data/` (CSV de entrada y staging), `dumps/` (volcado de `raw_saber11`), `logs/` ni el entorno virtual. El CSV de 2019 y el volcado se descargan del Drive del equipo (sección 9). Las limitaciones del análisis están en 7.3.
