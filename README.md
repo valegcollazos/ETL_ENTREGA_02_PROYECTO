@@ -169,6 +169,9 @@ El año 2020 está partido en dos publicaciones, una por periodo, y ninguna cubr
 
 Se usan las dos y se unen en **raw_api.parquet**.
 
+**Por qué esta API**
+Es la fuente oficial de los resultados de Saber 11 (ICFES) en datos abiertos, la misma de los otros dos años, y trae casi todas las columnas del esquema con el mismo nombre; solo hay que crear **`estu_nse_individual`** y **`estu_inse_individual`** en **a8xr-en99**. Además es el único origen que tenemos para 2020, deja filtrar Valle dentro de la consulta y funciona sin credenciales que es algo valioso cuando hacemos estos proyectos.
+
 **Las consultas**
 - El filtro de Valle **`upper(estu_depto_reside) = 'VALLE'`** se hace dentro de la consulta, para no descargar más de 500.000 filas del país.
 - Se ordena por **`estu_consecutivo`** y se pagina de 10.000 en 10.000. Sin un orden fijo, las páginas se pueden repetir o saltar filas.
