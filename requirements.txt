@@ -12,3 +12,5 @@ jupyter
 matplotlib
 seaborn
 pytest
+joblib==1.6.0
+scikit-learn==1.9.1
