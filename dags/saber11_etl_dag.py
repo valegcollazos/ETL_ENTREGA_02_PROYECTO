@@ -67,6 +67,11 @@ with DAG(
     load = tarea("load", "etl.carga.load.load")
     cleanup_staging = tarea("cleanup_staging", "etl.cleanup.cleanup_staging")
     dashboard_update = tarea("dashboard_update", "etl.dashboard.dashboard_update.dashboard_update")
+    publicar_kafka = tarea("publicar_kafka", "etl.streaming.publicar_kafka.publicar_kafka",
+                           retries=2, retry_delay=timedelta(seconds=30))
+
+    merge >> quality_check >> load >> [cleanup_staging, publicar_kafka]
+    cleanup_staging >> dashboard_update
 
     extract_api >> transform_api
     read_csv >> transform_csv

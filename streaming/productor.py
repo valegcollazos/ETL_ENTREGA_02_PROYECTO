@@ -60,7 +60,8 @@ def leer_dw() -> pd.DataFrame:
     base = os.getenv("DW_DB_NAME", "saber11_dw_e2")
     url = f"mysql+pymysql://{usuario}:{clave}@{host}:{puerto}/{base}?charset=utf8mb4"
     with create_engine(url).connect() as con:
-        return pd.read_sql(text(SQL), con)
+        res = con.execute(text(SQL))
+        return pd.DataFrame(res.fetchall(), columns=list(res.keys()))
 
 
 def ids_de_prueba() -> set[int] | None:
@@ -102,6 +103,36 @@ def crear_productor(bootstrap: str):
     raise SystemExit("No se pudo conectar a Kafka.")
 
 
+def publicar(limite: int = 1000, pausa: float = 0.3, todos: bool = False,
+             bootstrap: str | None = None) -> int:
+    """Lee el DW, arma los eventos y los publica en Kafka. Devuelve cuantos envio."""
+    df = leer_dw()
+    print(f"Filas leidas del DW (Valle): {len(df)}")
+    if not todos:
+        ids = ids_de_prueba()
+        if ids is not None:
+            df = df[df["id_resultado"].isin(ids)]
+            print(f"Solo conjunto de prueba (models/ids_test.csv): {len(df)} filas")
+    df = df.sample(frac=1, random_state=42)           # mezcla periodos y colegios
+    if limite:
+        df = df.head(limite)
+
+    bootstrap = bootstrap or os.getenv("KAFKA_BOOTSTRAP", "localhost:9094")
+    productor = crear_productor(bootstrap)
+    print(f"Publicando {len(df)} eventos en '{TOPICO}' ({bootstrap}), pausa {pausa}s")
+    enviados = 0
+    for _, fila in df.iterrows():
+        ev = crear_evento(fila)
+        productor.send(TOPICO, key=str(ev["event_id"]), value=ev)
+        enviados += 1
+        if enviados % 100 == 0:
+            print(f"  enviados {enviados}")
+        time.sleep(pausa)
+    productor.flush()
+    print("Listo: todos los eventos enviados.")
+    return enviados
+
+
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--limit", type=int, default=1000, help="max. eventos (0 = todos)")
@@ -109,29 +140,7 @@ def main() -> None:
     ap.add_argument("--todos", action="store_true",
                     help="enviar todos los estudiantes, no solo el conjunto de prueba")
     args = ap.parse_args()
-
-    df = leer_dw()
-    print(f"Filas leidas del DW (Valle): {len(df)}")
-    if not args.todos:
-        ids = ids_de_prueba()
-        if ids is not None:
-            df = df[df["id_resultado"].isin(ids)]
-            print(f"Solo conjunto de prueba (models/ids_test.csv): {len(df)} filas")
-    df = df.sample(frac=1, random_state=42)           # mezcla periodos y colegios
-    if args.limit:
-        df = df.head(args.limit)
-
-    bootstrap = os.getenv("KAFKA_BOOTSTRAP", "localhost:9094")
-    productor = crear_productor(bootstrap)
-    print(f"Publicando {len(df)} eventos en '{TOPICO}' ({bootstrap}), pausa {args.delay}s")
-    for i, (_, fila) in enumerate(df.iterrows(), start=1):
-        ev = crear_evento(fila)
-        productor.send(TOPICO, key=str(ev["event_id"]), value=ev)
-        if i % 100 == 0:
-            print(f"  enviados {i}")
-        time.sleep(args.delay)
-    productor.flush()
-    print("Listo: todos los eventos enviados.")
+    publicar(limite=args.limit, pausa=args.delay, todos=args.todos)
 
 
 if __name__ == "__main__":
