@@ -1,0 +1,173 @@
+{
+  "creado_utc": "2026-11-18T07:47:45+00:00",
+  "problema": "riesgo=1 si punt_global esta en el 25% mas bajo de su semestre (umbral calculado solo con train)",
+  "columnas_entrada": [
+    "semestre",
+    "fami_estratovivienda",
+    "fami_educacionpadre",
+    "fami_educacionmadre",
+    "fami_tieneinternet",
+    "fami_tienecomputador",
+    "fami_personashogar",
+    "cole_naturaleza",
+    "cole_calendario",
+    "cole_area_ubicacion",
+    "estu_mcpio_reside"
+  ],
+  "columnas_metadato_no_entrada": [
+    "event_id",
+    "event_ts",
+    "periodo",
+    "cole_cod_icfes",
+    "cole_nombre_establecimiento"
+  ],
+  "columnas_prohibidas": [
+    "punt_global",
+    "punt_matematicas",
+    "punt_lectura_critica",
+    "punt_naturales",
+    "punt_sociales_ciudadanas",
+    "punt_ingles",
+    "riesgo"
+  ],
+  "umbrales_p25_por_semestre": {
+    "1": 246.0,
+    "2": 210.0
+  },
+  "umbral_decision": 0.4436602395358716,
+  "modelo": "regresion_logistica",
+  "comparacion_validation": {
+    "regresion_logistica": {
+      "validation_pr_auc": 0.4229503869704646,
+      "validation_roc_auc": 0.6815316363784737
+    },
+    "random_forest": {
+      "validation_pr_auc": 0.4191286726536769,
+      "validation_roc_auc": 0.6787409325804528
+    }
+  },
+  "metricas_test": {
+    "pr_auc": 0.4320913129522417,
+    "roc_auc": 0.6874015460315684,
+    "recall": 0.72988890376121,
+    "precision": 0.3417309017985837,
+    "f1": 0.46551135393546184,
+    "umbral_decision": 0.4436602395358716,
+    "matriz_confusion": {
+      "tn": 12017,
+      "fp": 10504,
+      "fn": 2018,
+      "tp": 5453
+    }
+  },
+  "linea_base": {
+    "siempre_no": {
+      "recall": 0.0,
+      "precision": 0.0
+    },
+    "prevalencia_test_(PR-AUC_del_azar)": 0.24909975993598293
+  },
+  "importancia_permutacion_pr_auc": {
+    "estu_mcpio_reside": 0.06617453085833384,
+    "fami_educacionmadre": 0.044419646776412545,
+    "semestre": 0.023440889204332755,
+    "fami_educacionpadre": 0.021670400219248005,
+    "fami_estratovivienda": 0.01976362331283162,
+    "fami_personashogar": 0.011411461550301557,
+    "cole_calendario": 0.007111789999625677,
+    "cole_area_ubicacion": 0.006661211373041838,
+    "fami_tienecomputador": 0.004494204248320421,
+    "fami_tieneinternet": 0.0035624013456231154,
+    "cole_naturaleza": 0.0033832842529011495
+  },
+  "n_train": 89975,
+  "n_validation": 29992,
+  "n_test": 29992,
+  "categorias_vistas": {
+    "semestre": [
+      1,
+      2
+    ],
+    "fami_estratovivienda": [
+      "Estrato 1",
+      "Estrato 2",
+      "Estrato 3",
+      "Estrato 4",
+      "Estrato 5",
+      "Estrato 6",
+      "No informa",
+      "Sin Estrato"
+    ],
+    "fami_educacionpadre": [
+      "Educación profesional completa",
+      "Educación profesional incompleta",
+      "Ninguno",
+      "No Aplica",
+      "No informa",
+      "No sabe",
+      "Postgrado",
+      "Primaria completa",
+      "Primaria incompleta",
+      "Secundaria (Bachillerato) completa",
+      "Secundaria (Bachillerato) incompleta",
+      "Técnica o tecnológica completa",
+      "Técnica o tecnológica incompleta"
+    ],
+    "fami_educacionmadre": [
+      "Educación profesional completa",
+      "Educación profesional incompleta",
+      "Ninguno",
+      "No Aplica",
+      "No informa",
+      "No sabe",
+      "Postgrado",
+      "Primaria completa",
+      "Primaria incompleta",
+      "Secundaria (Bachillerato) completa",
+      "Secundaria (Bachillerato) incompleta",
+      "Técnica o tecnológica completa",
+      "Técnica o tecnológica incompleta"
+    ],
+    "fami_tieneinternet": [
+      "No",
+      "No informa",
+      "Si"
+    ],
+    "fami_tienecomputador": [
+      "No",
+      "No informa",
+      "Si"
+    ],
+    "fami_personashogar": [
+      "1 a 2",
+      "3 a 4",
+      "5 a 6",
+      "7 a 8",
+      "9 o más",
+      "No informa"
+    ],
+    "cole_naturaleza": [
+      "NO OFICIAL",
+      "No aplica",
+      "OFICIAL"
+    ],
+    "cole_calendario": [
+      "A",
+      "B",
+      "No aplica",
+      "OTRO"
+    ],
+    "cole_area_ubicacion": [
+      "No aplica",
+      "RURAL",
+      "URBANA"
+    ]
+  },
+  "versiones": {
+    "python": "3.14.3",
+    "scikit_learn": "1.9.1",
+    "joblib": "1.6.0",
+    "pandas": "3.0.6",
+    "numpy": "2.5.4"
+  }
+}

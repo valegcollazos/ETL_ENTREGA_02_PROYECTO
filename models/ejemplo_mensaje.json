@@ -1,0 +1,24 @@
+{
+  "evento_entrada": {
+    "event_id": 54644,
+    "semestre": 2,
+    "fami_estratovivienda": "No informa",
+    "fami_educacionpadre": "No informa",
+    "fami_educacionmadre": "No informa",
+    "fami_tieneinternet": "No informa",
+    "fami_tienecomputador": "No informa",
+    "fami_personashogar": "No informa",
+    "cole_naturaleza": "No aplica",
+    "cole_calendario": "No aplica",
+    "cole_area_ubicacion": "No aplica",
+    "estu_mcpio_reside": "JAMUNDÍ"
+  },
+  "mensaje_prediccion_esperado": {
+    "event_id": 54644,
+    "model_id": "saber11-estudiante-en-riesgo",
+    "model_version": "1.0.0",
+    "prediction": 0,
+    "prediction_label": "sin_riesgo",
+    "probability_riesgo": 0.3962
+  }
+}
