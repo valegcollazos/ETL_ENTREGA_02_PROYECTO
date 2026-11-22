@@ -113,7 +113,7 @@ def publicar(limite: int = 1000, pausa: float = 0.3, todos: bool = False,
         if ids is not None:
             df = df[df["id_resultado"].isin(ids)]
             print(f"Solo conjunto de prueba (models/ids_test.csv): {len(df)} filas")
-    df = df.sample(frac=1, random_state=42)           # mezcla periodos y colegios
+    df = df.sort_values("id_resultado").sample(frac=1, random_state=42)  # reproducible
     if limite:
         df = df.head(limite)
 
