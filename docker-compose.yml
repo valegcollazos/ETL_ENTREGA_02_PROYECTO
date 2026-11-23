@@ -11,7 +11,8 @@ x-airflow-common: &airflow-common
     AIRFLOW__WEBSERVER__EXPOSE_CONFIG: "false"
     PYTHONPATH: /opt/airflow
     # Dentro de la red de Docker, MySQL se llama "mysql" y usa el puerto 3306
-    MYSQL_HOST: mysql
+    MYSQL_HOST: mysql     
+    KAFKA_BOOTSTRAP: kafka:9092
     MYSQL_PORT: "3306"
     STAGING_DIR: /opt/airflow/data/staging
     CSV_2019_PATH: /opt/airflow/data/input/saber11_2019.csv
@@ -21,12 +22,16 @@ x-airflow-common: &airflow-common
     - ./data:/opt/airflow/data
     - ./dashboards:/opt/airflow/dashboards
     - ./logs:/opt/airflow/logs
+    - ./streaming:/opt/airflow/streaming:ro
+    - ./models:/opt/airflow/models:ro
   user: "${AIRFLOW_UID:-50000}:0"
   depends_on: &airflow-depends
     postgres:
       condition: service_healthy
     mysql:
       condition: service_healthy
+    kafka:
+      condition: service_healthy  
 
 services:
   postgres:
@@ -118,6 +123,81 @@ services:
          mysql:
            condition: service_healthy
        command: jupyter lab --ip=0.0.0.0 --port=8888 --no-browser --allow-root --IdentityProvider.token=saber11
+
+  kafka:
+    image: apache/kafka:3.9.0
+    ports:
+      - "9094:9094"   # para scripts desde tu computador
+    environment:
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_LISTENERS: PLAINTEXT://:9092,CONTROLLER://:9093,EXTERNAL://:9094
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092,EXTERNAL://localhost:9094
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,EXTERNAL:PLAINTEXT
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "false"
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/kafka/bin/kafka-broker-api-versions.sh --bootstrap-server localhost:9092 > /dev/null 2>&1"]
+      interval: 10s
+      retries: 10
+    restart: always
+
+  kafka-init:
+    image: apache/kafka:3.9.0
+    depends_on:
+      kafka:
+        condition: service_healthy
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:9092 --create --if-not-exists --topic saber11.estudiantes --partitions 1 --replication-factor 1
+        /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:9092 --create --if-not-exists --topic saber11.predicciones --partitions 1 --replication-factor 1
+    restart: "no"  
+
+  productor:
+    build: ./streaming
+    profiles: ["streaming"]
+    env_file: .env
+    environment:
+      PYTHONUNBUFFERED: "1"
+      KAFKA_BOOTSTRAP: kafka:9092
+      MYSQL_HOST: mysql
+      MYSQL_PORT: "3306"
+    volumes:
+      - ./streaming:/app/streaming:ro
+      - ./models:/app/models:ro
+      - ./data:/app/data
+    working_dir: /app
+    command: python streaming/productor.py --limit 1000 --delay 0.3
+    depends_on:
+      kafka:
+        condition: service_healthy
+      mysql:
+        condition: service_healthy
+    restart: "no"
+
+  consumidor:
+    build: ./streaming
+    profiles: ["streaming"]
+    environment:
+      PYTHONUNBUFFERED: "1"
+      KAFKA_BOOTSTRAP: kafka:9092
+    volumes:
+      - ./streaming:/app/streaming:ro
+      - ./models:/app/models:ro
+      - ./data:/app/data
+    working_dir: /app
+    command: python streaming/consumidor.py
+    depends_on:
+      kafka:
+        condition: service_healthy
+    restart: "no"
 
 volumes:
   postgres-db:
