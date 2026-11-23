@@ -1,4 +1,6 @@
-# ETL Saber 11 — Valle del Cauca antes, durante y después de la pandemia (Entrega 2)
+# ETL Saber 11 — Valle del Cauca antes, durante y después de la pandemia (Entrega Final)
+
+Pipeline ETL reproducible sobre los resultados Saber 11 del Valle del Cauca (2019, 2020 y 2025) que alimenta **dos formas de consumo a partir de una sola arquitectura**: una **analítica** (modelo dimensional en estrella + reporte estático con pruebas de hipótesis) y una **operativa** (un modelo de ML servido en tiempo real por Kafka y mostrado en un dashboard para decidir a qué colegios y municipios priorizar apoyo). La articulación de valor de ambas está en la sección 12.
 
 ## 1. Objetivo
 ¿Cómo cambió el rendimiento en Saber 11 y su relación con las condiciones socioeconómicas del hogar (estrato, educación de los padres, internet y computador, NSE) entre 2019 (antes), 2020 (durante) y 2025 (después de la pandemia) en el Valle del Cauca?
@@ -14,11 +16,14 @@
 
 ## 2. Arquitectura
 
-![Diagrama de arquitectura](docs/arquitectura.png)
+![Diagrama de arquitectura de la entrega final](docs/arquitectura_final.png)
 
-*Figura 1. Arquitectura del pipeline: tres fuentes (CSV 2019, API 2020 y base SQL 2025), un DAG de Airflow en Docker, validación con Great Expectations antes de cargar y un DW en estrella en MySQL. Versión vectorial en `docs/arquitectura.svg`.*
+*Figura 1. Arquitectura de la entrega final: del dato a la decisión. Tres fuentes (CSV 2019, API 2020 y base SQL 2025) entran a un DAG de Airflow que extrae, transforma, valida con Great Expectations y carga un DW en estrella en MySQL. Desde ahí nacen los dos caminos: el **analítico** (reporte estático e informe, sección 7) y el **operativo** (productor → Kafka → consumidor con el modelo → dashboard en tiempo real, secciones 9–11). El diagrama de la entrega 2 (solo ETL) sigue en `docs/arquitectura.png` / `docs/arquitectura.svg`.*
 
-Tres ramas en paralelo producen archivos con la misma estructura (ver sección 4.1), que se apilan, se validan con Great Expectations y se cargan en un modelo estrella en MySQL.
+Tres ramas en paralelo producen archivos con la misma estructura (ver sección 4.1), que se apilan, se validan con Great Expectations y se cargan en un modelo estrella en MySQL. Sobre ese modelo se construyen los dos consumos:
+
+- **Analítico (punto en el tiempo):** el modelo dimensional alimenta el reporte estático y el informe de pruebas de hipótesis (sección 7). Responde *cómo cambió la brecha socioeconómica antes/durante/después de la pandemia*.
+- **Operativo (en tiempo real):** un modelo de ML entrenado sobre el DW (sección 9) se publica por Kafka (sección 10) y se consume en un dashboard que prioriza colegios y municipios (sección 11). Responde *a qué colegios priorizar apoyo ahora*.
 
 | Rama | Fuente | Año |
 |---|---|---|
@@ -30,17 +35,21 @@ Tres ramas en paralelo producen archivos con la misma estructura (ver sección 4
 DAG `saber11_valle_etl` (`dags/saber11_etl_dag.py`):
 
 ```
-extract_api -> transform_api ┐
-read_csv    -> transform_csv ├-> merge -> quality_check -> load -> cleanup_staging -> dashboard_update
-read_db     -> transform_db  ┘
+extract_api -> transform_api ┐                                   ┌-> cleanup_staging -> dashboard_update
+read_csv    -> transform_csv ├-> merge -> quality_check -> load --┤
+read_db     -> transform_db  ┘                                   └-> publicar_kafka
 ```
 ![DAG saber11_valle_etl en Airflow](docs/dag_graph.png)
 
-*Figura 2. Vista Graph del DAG en Airflow: tres ramas en paralelo que convergen en `merge`.*
+*Figura 2. Vista Graph del DAG en Airflow: tres ramas en paralelo convergen en `merge`; tras `load` el flujo se abre en `cleanup_staging → dashboard_update` (analítico) y en `publicar_kafka` (operativo).*
 
 ![Ejecución exitosa del DAG en Airflow](docs/dag_ejecucion_verde.png)
 
 *Figura 3. Ejecución exitosa de la corrida completa del pipeline en Airflow (todas las tareas en estado success).*
+
+![Event Log del DAG](docs/dag_event_log.png)
+
+*Figura 4. Event Log de Airflow: cada tarea pasa a `success`, incluida `publicar_kafka` al final.*
 
 | Tarea | Entrada → salida | Reintentos |
 |---|---|---|
@@ -54,7 +63,10 @@ read_db     -> transform_db  ┘
 | quality_check | staging_merged → aprueba o falla | 0 |
 | load | staging_merged → DW | 0 |
 | cleanup_staging | borra temporales (solo si load terminó bien) | 0 |
-| dashboard_update | DW → tableros | 0 |
+| dashboard_update | DW → tablero analítico HTML | 0 |
+| publicar_kafka | DW → tópico `saber11.estudiantes` (reusa el productor; 200 eventos por defecto) | 2 (30 s) |
+
+Tras `load`, el flujo se abre en dos: `cleanup_staging → dashboard_update` (camino analítico) y `publicar_kafka` (camino operativo). El detalle de la parte de streaming está en las secciones 10 y 11.
 
 Parámetros: `@daily` técnico (los datos son históricos: la ejecución diaria cumple la consigna de extracción programada, pero en la práctica no cambia nada), `catchup=False`, `max_active_runs=1`, reintento global 0. Los datos pasan entre tareas por archivos parquet en `data/staging`, nunca por XCom.
 
@@ -118,7 +130,7 @@ Pruebas realizadas:
 ### 4.5. Resultados de la rama CSV (2019)
 
 Ficha técnica completa en `docs/ficha_fuente_csv.md`.  
-**Fuente original:** `2019.csv` (Datos Abiertos ICFES Saber 11 2019, alcance nacional, 459,6 MB, 94 columnas). Es el mismo archivo que la sección 9 llama `saber11_2019.csv`: ese es el nombre con el que se guarda en `data/input/`.
+**Fuente original:** `2019.csv` (Datos Abiertos ICFES Saber 11 2019, alcance nacional, 459,6 MB, 94 columnas). Es el mismo archivo que la sección 13 llama `saber11_2019.csv`: ese es el nombre con el que se guarda en `data/input/`.
 
 | Etapa | Resultado |
 |---|---|
@@ -163,7 +175,7 @@ Ficha técnica completa en `docs/ficha_fuente_csv.md`.
 - **NSE/INSE:** no se imputan; quedan como `-1` y nulo. No entran a las pruebas de hipótesis (solo al EDA, de forma descriptiva); su cobertura por año está en 7.1.
 - **Puntajes comparables:** se asume que 2019, 2020 y 2025 usan la misma escala (0–500 global, 0–100 por prueba).
 - **Datos históricos:** `@daily` es técnico; ejecutar de nuevo no cambia los datos.
-- **`.gitignore`:** no se suben `.env` (credenciales), `data/` (CSV de entrada y staging), `dumps/` (volcado de `raw_saber11`), `logs/` ni el entorno virtual. El CSV de 2019 y el volcado se descargan del Drive del equipo (sección 9). Las limitaciones del análisis están en 7.3.
+- **`.gitignore`:** no se suben `.env` (credenciales), `data/` (CSV de entrada y staging), `dumps/` (volcado de `raw_saber11`), `logs/` ni el entorno virtual. El CSV de 2019 y el volcado se descargan del Drive del equipo (sección 13). Las limitaciones del análisis están en 7.3.
 
 ---
 
@@ -222,11 +234,11 @@ La tarea **`quality_check`** revisa **`staging_merged.parquet`** con Great Expec
 Cada mínimo se fijó un poco por debajo del conteo real de su fuente, para detectar cargas incompletas sin que un descarte normal de duplicados dispare la regla de calidad.
 
 **Integración y generación de informes analíticos**
-Una vez que Great Expectations valida el archivo unificado `staging_merged.parquet`, los datos pasan a la tarea de carga en MySQL (`load`) y luego a `dashboard_update`, que es la única tarea del DAG que produce un entregable de análisis (el tablero). El EDA y el informe analítico con las pruebas estadísticas formales **no son tareas del DAG**: son cuadernos que se ejecutan en Docker sobre el Data Warehouse ya cargado (sección 9) y generan `reports/eda_saber11.html` y `reports/informe_saber11.html`.
+Una vez que Great Expectations valida el archivo unificado `staging_merged.parquet`, los datos pasan a la tarea de carga en MySQL (`load`) y, después, a `dashboard_update` (tablero analítico HTML del DW) y a `publicar_kafka`, que abre el camino operativo en tiempo real (secciones 10–11). El EDA y el informe analítico con las pruebas estadísticas formales **no son tareas del DAG**: son cuadernos que se ejecutan en Docker sobre el Data Warehouse ya cargado (sección 13) y generan `reports/eda_saber11.html` y `reports/informe_saber11.html`.
 
 ## 7. Análisis Exploratorio de Datos (EDA) e Informe Analítico
 
-Hay dos cuadernos en `notebooks/`. Ambos leen **solo el Data Warehouse** (`saber11_dw_e2`: 149.959 registros que ya pasaron Great Expectations y la carga) y se exportan a HTML en `reports/`. Ninguno es una tarea del DAG: se ejecutan a demanda cuando el DAG ya terminó (ver sección 9).
+Hay dos cuadernos en `notebooks/`. Ambos leen **solo el Data Warehouse** (`saber11_dw_e2`: 149.959 registros que ya pasaron Great Expectations y la carga) y se exportan a HTML en `reports/`. Ninguno es una tarea del DAG: se ejecutan a demanda cuando el DAG ya terminó (ver sección 13).
 
 | Cuaderno | Salida | Para qué sirve |
 |---|---|---|
@@ -234,6 +246,8 @@ Hay dos cuadernos en `notebooks/`. Ambos leen **solo el Data Warehouse** (`saber
 | `informe_saber11.ipynb` | `reports/informe_saber11.html` | Pruebas de hipótesis (ANOVA de Welch, t de Welch, *d* de Cohen, η², interacción año × grupo) para decir si las diferencias son significativas **y** de qué tamaño. |
 
 Las funciones de apoyo (conexión al DW, pruebas estadísticas y gráficos) están en `notebooks/analisis_utils.py`. Todas las cifras del texto se calculan al ejecutar: si el DW cambia, los informes se actualizan solos.
+
+**Cuadernos de entregas anteriores.** Como pide la consigna, en `notebooks/` también se conservan los cuadernos de EDA de las entregas previas (EDA inicial por fuente de la entrega 1 y 2), además del cuaderno `notebooks/info_modelo_ml.ipynb` que documenta el entrenamiento y la evaluación del modelo (sección 9).
 
 **Alcance.** Las pruebas formales cubren año/etapa, estrato, internet, computador, naturaleza del colegio y áreas. La educación de los padres y el NSE/INSE se exploran solo de forma descriptiva en el EDA (distribución por año y correlación del puntaje global con el INSE, r = 0,40, y con el NSE, r = 0,36); no tienen prueba de hipótesis ni brecha por año.
 
@@ -273,7 +287,7 @@ Las funciones de apoyo (conexión al DW, pruebas estadísticas y gráficos) est�
 
 ![Brechas en el puntaje global por año](reports/figuras/resumen_brechas.png)
 
-*Figura 4. Brecha en el puntaje global por año (diferencia de medias con IC 95 %) para estrato, internet, computador y naturaleza del colegio. Se genera al ejecutar `informe_saber11.ipynb`.*
+*Figura 5. Brecha en el puntaje global por año (diferencia de medias con IC 95 %) para estrato, internet, computador y naturaleza del colegio. Se genera al ejecutar `informe_saber11.ipynb`.*
 
 **Conclusión general.** Después de comparar el mismo semestre, el puntaje global de 2025 no es relevantemente distinto del de 2019 (el cambio más grande tiene *d* = 0,18) y la mejora más clara está en Inglés. Las brechas por internet, computador y tipo de colegio se mantienen entre 24 y 31 puntos (efectos pequeños a medianos) y la de estrato es la mayor, pero se redujo en 2025. Todo es asociación: el estudio es observacional.
 
@@ -286,14 +300,14 @@ Las funciones de apoyo (conexión al DW, pruebas estadísticas y gráficos) est�
 - **Significancia y tamaño:** con muestras grandes un *p* pequeño no implica una diferencia importante; por eso se reporta el tamaño del efecto. El umbral de 0,1 desviaciones estándar para decir que una brecha cambió es un criterio práctico del informe, no una regla estadística universal.
 - **Comparabilidad de ediciones:** se asume que los puntajes de 2019, 2020 y 2025 están en la misma escala (0–500).
 
-### 7.4. Dashboard y Hallazgos Socioeconómicos
-El dashboard interactivo fue construido consultando directamente el Data Warehouse validado (`saber11_dw_e2`) y exportado a `dashboards/saber11_valle.html`.
+### 7.4. Dashboard analítico (del DW) y Hallazgos Socioeconómicos
+Este es el dashboard **analítico**: fue construido consultando directamente el Data Warehouse validado (`saber11_dw_e2`) y exportado a `dashboards/saber11_valle.html`. Es un panorama de punto en el tiempo; no se confunde con el **dashboard operativo en tiempo real** (sección 11), que se alimenta del stream de Kafka, no del DW.
 
 ![Resultados Generales y Promedio por Área](docs/dashboard_01.png)
-*Figura 5. Indicadores globales y promedio de puntaje por área antes (2019), durante (2020) y después (2025) de la pandemia.*
+*Figura 6. Indicadores globales y promedio de puntaje por área antes (2019), durante (2020) y después (2025) de la pandemia.*
 
 ![Análisis Socioeconómico y Conectividad](docs/dashboard_02.png)
-*Figura 6. Relación del puntaje global con estrato, naturaleza del colegio, acceso a internet y tabla resumen por periodo.*
+*Figura 7. Relación del puntaje global con estrato, naturaleza del colegio, acceso a internet y tabla resumen por periodo.*
 
 #### Principales Insights Extraídos:
 1. **Comportamiento Temporal y Semestre:**
@@ -314,7 +328,7 @@ Modelo en estrella en MySQL (base `saber11_dw_e2`, script `sql/esquema_dw.sql`).
 
 ![Modelo de datos en estrella](docs/modelo_datos.png)
 
-*Figura 7. Modelo en estrella: la fact `fact_resultadossaber11` y sus cuatro dimensiones.*
+*Figura 8. Modelo en estrella: la fact `fact_resultadossaber11` y sus cuatro dimensiones.*
 
 | Tabla | Contenido | Llaves | Filas (DW con los tres años) |
 |---|---|---|---|
@@ -331,7 +345,79 @@ Modelo en estrella en MySQL (base `saber11_dw_e2`, script `sql/esquema_dw.sql`).
 - **Clasificación Temporal:** La dimensión `dim_tiempo.etapa_pandemia` asigna la etiqueta correspondiente a cada periodo (`2019` → Antes, `2020` → Durante, `2025` → Después), optimizando los filtros del dashboard y del informe analítico.
 - **Estandarización de Nombres en la Fact:** Durante la fase de limpieza en staging se mantienen los nombres originales `punt_c_naturales` y `cole_codigo_icfes`. Únicamente al momento de la carga a MySQL se renombran formalmente a `punt_naturales` y `cole_cod_icfes` para coincidir con la DDL del Data Warehouse.
 
-## 9. Cómo correrlo desde cero
+## 9. Modelo de Machine Learning (estudiante en riesgo)
+
+Script: `ml/entrenar_modelo.py`. Cuaderno de documentación: `notebooks/info_modelo_ml.ipynb`. Artefactos en `models/`.
+
+**Problema y target.** Clasificación binaria: `riesgo = 1` si el `punt_global` del estudiante queda en el **25 % más bajo de su semestre**. El umbral (percentil 25) se calcula **solo con el conjunto de entrenamiento** y por separado para cada semestre (p25 sem. 1 = 246; p25 sem. 2 = 210), para no mezclar la composición distinta de cada semestre. Predecirlo es útil porque permite priorizar apoyo antes de ver el resultado final.
+
+**Features (12).** `semestre`, `fami_estratovivienda`, `fami_educacionpadre`, `fami_educacionmadre`, `fami_tieneinternet`, `fami_tienecomputador`, `fami_personashogar`, `cole_naturaleza`, `cole_calendario`, `cole_area_ubicacion`, `estu_mcpio_reside` y `colegio_riesgo_hist` (proporción histórica de riesgo del colegio, suavizada, derivada de `cole_cod_icfes`). **Nunca** entra ningún puntaje: el target no viaja como variable (no hay fuga).
+
+**Preprocesamiento (en el mismo Pipeline que se serializa).** `OneHotEncoder` para las categóricas (`handle_unknown="infrequent_if_exist"`, `min_frequency=50`, así los municipios/categorías raras caen en "otros") y `StandardScaler` para la variable numérica del historial. Todo va dentro de un `Pipeline` de scikit-learn, de modo que el consumer carga **el mismo pipeline ajustado** y no reentrena por mensaje.
+
+**Entrenamiento y evaluación.** División 60 / 20 / 20 (train / validation / test), estratificada por semestre. El historial del colegio se calcula **fuera de pliegue** (KFold de 5) para entrenar, y con la tabla de train+validation para test y para el consumer, evitando fuga. Se comparan **regresión logística** y **random forest** por PR-AUC en validation (gana la regresión logística); el umbral de decisión se fija maximizando F1 en validation (≈ 0,49). El test se evalúa **una sola vez**.
+
+| Métrica (test, modelo 2.0 con historial) | Valor |
+|---|---|
+| PR-AUC | 0,539 |
+| ROC-AUC | 0,766 |
+| Recall | 0,68 |
+| Precisión | 0,44 |
+| F1 | 0,53 |
+| Prevalencia (azar) | 0,249 |
+
+**Artefactos serializados (`models/`).** `modelo_riesgo.joblib` (dict `{"model": Pipeline, "metadata": {...}}`), `metricas.json` (umbrales, versiones, métricas, importancias), `historial_colegios.json` (tabla colegio → riesgo histórico), `ids_test.csv` (los estudiantes del test, que el productor publica por defecto) y `ejemplo_mensaje.json`.
+
+**Limitaciones.**
+- El **historial del colegio domina** la importancia por permutación (0,24 frente a 0,02 de la siguiente variable): en la práctica el modelo predice sobre todo por el colegio, no por el perfil individual del estudiante.
+- Las métricas de arriba son de una **partición aleatoria**, donde el historial del colegio alcanza a "ver" compañeros del mismo año (algo optimista). El experimento temporal honesto (entrenar con 2019–2020 y probar con 2025, en `models/experimento_colegio.json`) baja a **PR-AUC ≈ 0,47 y ROC-AUC ≈ 0,74**: esa es la cifra más realista de cara a un uso futuro.
+- Es un estudio observacional: el modelo indica **probabilidad** de riesgo para priorizar, no causas. Las variables socioeconómicas tienen cerca de 25 % de "No informa" en 2019 y 2025.
+
+## 10. Streaming con Kafka
+
+Documento completo: `docs/kafka_streaming.md`. Kafka corre en modo KRaft, un solo nodo (`apache/kafka:3.9.0`), definido en `docker-compose.yml`.
+
+**Tópicos.** `saber11.estudiantes` (eventos de entrada que publica el productor) y `saber11.predicciones` (salida del consumer). Los crea el servicio `kafka-init` (1 partición cada uno).
+
+**Estructura del mensaje (`saber11.estudiantes`).** Clave = `event_id` (texto); valor = JSON UTF-8. Lo más importante: **no viaja ningún puntaje** (el target no se publica como variable de entrada).
+
+| Campo | Descripción |
+|---|---|
+| `event_id` | `id_resultado` de la fact; identifica el evento y permite descartar repetidos |
+| `event_ts` | Momento en que el productor emitió el evento (UTC) |
+| `semestre` | 1 o 2, **entero** |
+| `fami_*`, `cole_*`, `estu_mcpio_reside` | Las 11 variables de entrada del modelo (con `semestre`) |
+| `cole_cod_icfes` | Código del colegio; el modelo busca con él su historial |
+| `cole_nombre_establecimiento` | Solo para mostrar en el dashboard |
+
+**Productor (`streaming/productor.py`).** Lee la fact uniendo las cuatro dimensiones (solo Valle, con `punt_global` no nulo). Por defecto publica solo el **conjunto de prueba** (`models/ids_test.csv`), que el modelo no vio al entrenar, con una pequeña pausa entre mensajes (simulación del stream, sin CDC). Se ejecuta dentro del DAG (`publicar_kafka`, tras `load`) o a mano (`docker compose --profile streaming run --rm productor`).
+
+**Consumer e inferencia (`streaming/consumidor.py`).** Carga **una sola vez** `models/modelo_riesgo.joblib` (pipeline + metadata). Por cada evento arma la fila de entrada, agrega `colegio_riesgo_hist` buscando el colegio por `cole_cod_icfes` (si es nuevo, usa la media global), calcula la probabilidad y la convierte en etiqueta con el umbral guardado en la metadata (no 0,5). Escribe cada predicción en `data/streaming/predicciones.jsonl` (una línea por evento) y la publica en `saber11.predicciones`. Es **idempotente**: descarta los `event_id` ya procesados.
+
+## 11. Dashboard operativo en tiempo real
+
+Código: `streaming/dashboard/app.py` (lógica de datos en `streaming/dashboard/datos.py`). Lee `data/streaming/predicciones.jsonl` que escribe el consumer; **no consulta MySQL** (eso lo hace el reporte estático). Interfaz: http://localhost:8501.
+
+**La decisión que apoya:** a qué colegios y municipios priorizar apoyo/refuerzo. Por eso es **operativo**, no solo analítico:
+- **Prioridad:** colegios y municipios ordenados por mayor % de estudiantes en riesgo (con un mínimo de casos ajustable).
+- **Alerta** visible cuando un colegio/municipio supera un umbral ajustable (y marca de estudiantes con probabilidad individual alta). Las filas en alerta se señalan con color **y** con un símbolo ▲, para no depender solo del color (accesibilidad / daltonismo).
+- **Acción sugerida** en texto ("Priorizar tutorías en estos N colegios…").
+- **Apoyo analítico:** contador de mensajes, % en riesgo total y % por estrato, últimas predicciones.
+
+**Técnica.** `@st.fragment(run_every="3s")` refresca solo la parte viva sin recargar toda la página; `@st.cache_data(ttl=60)` se usa solo en lo que casi no cambia (catálogo de municipios del filtro). En lo que se actualiza en vivo no hay caché.
+
+**Simulador de demo.** `streaming/dashboard/simular_stream.py` agrega predicciones poco a poco (tomándolas de `streaming/ejemplo_predicciones.jsonl`) para mostrar el tablero actualizándose en vivo sin levantar todo el stack. Es solo una ayuda de demostración; el dashboard real se alimenta del consumer de Kafka.
+
+## 12. Articulación de valor (operativo + analítico)
+
+Una sola arquitectura (el modelo dimensional validado) genera valor por **dos caminos complementarios**:
+
+- **Proceso operativo (tiempo real, vía Kafka).** Fact → productor → `saber11.estudiantes` → consumer (con el modelo) → `predicciones.jsonl` → dashboard. Responde **a qué colegios y municipios priorizar apoyo ahora**: cada estudiante que "llega" se puntúa en el momento y el tablero mantiene al día la lista de prioridad y las alertas. Es una decisión de **acción inmediata**.
+- **Proceso analítico (punto en el tiempo, vía el DW).** Fact + dimensiones → reporte estático (`informe_saber11.html`, `eda_saber11.html`) y dashboard analítico (`dashboards/saber11_valle.html`). Responde **cómo cambió la brecha socioeconómica antes/durante/después de la pandemia** y de qué tamaño son las diferencias. Es una decisión de **política y diagnóstico**.
+
+El mismo dato validado sirve para decidir *hoy* (operativo) y para *entender* el fenómeno (analítico), sin duplicar la ingesta ni la limpieza.
+
+## 13. Cómo correrlo desde cero
 Probado en Windows con PowerShell y Docker Desktop.
 
 1. Instalar Docker Desktop y Git.
@@ -366,17 +452,33 @@ Los resultados quedan en `reports/eda_saber11.html` y `reports/informe_saber11.h
 
 Dentro de Docker, el servicio `jupyter` toma las credenciales del `.env` y `docker-compose.yml` le fija `MYSQL_HOST=mysql` y `MYSQL_PORT=3306`; monta `notebooks/` y `reports/`, por eso los HTML y las figuras quedan en tu carpeta del proyecto. Fuera de Docker, `analisis_utils.conectar()` lee `MYSQL_USER`, `MYSQL_PASSWORD`, `MYSQL_HOST`, `MYSQL_PORT` y `DW_DB_NAME` (por defecto `saber11_dw_e2`); desde el equipo anfitrión el MySQL del proyecto está en `localhost:3307`.
 
+### 13.1. Streaming en tiempo real (modelo + Kafka + dashboard)
+Con el DAG ya corrido (DW cargado), levanta la parte de streaming:
+
+```bash
+docker compose --profile streaming up -d consumidor dashboard   # consumer + dashboard
+docker compose --profile streaming run --rm productor           # publica eventos a Kafka
+```
+
+- El **consumer** carga el modelo y escribe `data/streaming/predicciones.jsonl`.
+- El **dashboard operativo** queda en http://localhost:8501 (se actualiza cada 3 s).
+- (Opcional) Reentrenar el modelo: `python ml/entrenar_modelo.py` (con el DW arriba).
+- (Opcional) Demo sin levantar el stack: `python streaming/dashboard/simular_stream.py --delay 0.5`.
+
 Pruebas unitarias (limpieza, rama CSV y funciones estadísticas del informe): `pytest -q` desde la raíz del proyecto.
 
-## 10. Estructura
+## 14. Estructura
 ```
 dags/        DAG de Airflow (tareas y orquestación)
-etl/         Definición de esquema, limpieza compartida, ramas (api, csv, db), merge, calidad y carga
+etl/         Definición de esquema, limpieza compartida, ramas (api, csv, db), merge, calidad, carga y publicación a Kafka
+ml/          Entrenamiento y evaluación del modelo de riesgo (entrenar_modelo.py) y experimentos
+models/      Artefactos serializados del modelo (modelo_riesgo.joblib, metricas.json, historial_colegios.json, ids_test.csv)
+streaming/   Productor y consumidor de Kafka; en streaming/dashboard/, el dashboard operativo en tiempo real (Streamlit) y su simulador
 sql/         Esquemas DDL para el Data Warehouse y bases de datos
 scripts/     Utilidades: generar_muestra_referencia.py crea docs/muestra_referencia.parquet (200 filas de un staging válido, con casos especiales) para probar la validación sin correr el pipeline completo
-docs/        Fichas técnicas de las fuentes, diagramas de arquitectura y modelos
-notebooks/   EDA (eda_saber11.ipynb), informe analítico (informe_saber11.ipynb), utilidades (analisis_utils.py) y Dockerfile de Jupyter
-dashboards/  Tableros HTML interactivos alimentados directamente del DW
+docs/        Fichas técnicas de las fuentes, diagramas de arquitectura, modelo y streaming (kafka_streaming.md)
+notebooks/   EDA (eda_saber11.ipynb), informe analítico (informe_saber11.ipynb), modelo (info_modelo_ml.ipynb), utilidades (analisis_utils.py) y Dockerfile de Jupyter
+dashboards/  Tablero analítico HTML alimentado directamente del DW
 reports/     Informe analítico (informe_saber11.html), EDA (eda_saber11.html) y figuras generadas (figuras/)
 tests/       Pruebas unitarias con pytest: limpieza, rama CSV y funciones estadísticas del informe
 ```
