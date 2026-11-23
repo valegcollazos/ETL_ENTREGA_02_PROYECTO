@@ -1,0 +1,76 @@
+{
+  "A_particion_aleatoria": {
+    "base": {
+      "modelo": "actual (11 variables)",
+      "pr_auc": 0.4317662628663415,
+      "roc_auc": 0.6869077520835697,
+      "por_colegio": {
+        "grupos": 442,
+        "spearman": 0.7399216193359528,
+        "pearson": 0.729726244825837,
+        "coincidencia_top30": 0.36666666666666664
+      },
+      "por_municipio": {
+        "grupos": 35,
+        "spearman": 0.8072829131652661,
+        "pearson": 0.8519081000046438,
+        "coincidencia_top7": 0.7142857142857143
+      }
+    },
+    "con_historial": {
+      "modelo": "con historial del colegio",
+      "pr_auc": 0.5347185449599137,
+      "roc_auc": 0.7630768905163372,
+      "por_colegio": {
+        "grupos": 442,
+        "spearman": 0.8845981910758902,
+        "pearson": 0.8970174238465295,
+        "coincidencia_top30": 0.8333333333333334
+      },
+      "por_municipio": {
+        "grupos": 35,
+        "spearman": 0.8081232492997201,
+        "pearson": 0.8554489675153005,
+        "coincidencia_top7": 0.7142857142857143
+      }
+    },
+    "prevalencia_test": 0.24909975993598293
+  },
+  "B_temporal_2019_2020_a_2025": {
+    "base": {
+      "modelo": "actual (11 variables)",
+      "pr_auc": 0.3828372107227034,
+      "roc_auc": 0.6712623805020923,
+      "por_colegio": {
+        "grupos": 357,
+        "spearman": 0.7097621658596134,
+        "pearson": 0.7423075542022463,
+        "coincidencia_top30": 0.5666666666666667
+      },
+      "por_municipio": {
+        "grupos": 34,
+        "spearman": 0.7423987776928953,
+        "pearson": 0.8156307325798716,
+        "coincidencia_top6": 0.8333333333333334
+      }
+    },
+    "con_historial": {
+      "modelo": "con historial del colegio",
+      "pr_auc": 0.47413338948550443,
+      "roc_auc": 0.739154422033726,
+      "por_colegio": {
+        "grupos": 357,
+        "spearman": 0.8310232894658705,
+        "pearson": 0.8662168681841864,
+        "coincidencia_top30": 0.8333333333333334
+      },
+      "por_municipio": {
+        "grupos": 34,
+        "spearman": 0.7518716577540107,
+        "pearson": 0.8209754605412316,
+        "coincidencia_top6": 0.6666666666666666
+      }
+    },
+    "prevalencia_test": 0.23372972972972972
+  }
+}
