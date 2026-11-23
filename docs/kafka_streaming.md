@@ -10,8 +10,8 @@ Un modelo que predice "estudiante en riesgo" solo sirve si alguien lo usa para a
 La decisión operativa es **a qué colegios y municipios priorizar apoyo o refuerzo**.
 En lugar de esperar a un reporte mensual, cada estudiante que llega al sistema se
 puntúa en el momento y el dashboard mantiene al día la lista de colegios prioritarios
-(ver `docs/dashboard.md`). Kafka desacopla quien produce los datos (el ETL) de quien los
-consume (el modelo y el dashboard).
+(ver la sección 7 y el código en `streaming/dashboard/app.py`). Kafka desacopla quien
+produce los datos (el ETL) de quien los consume (el modelo y el dashboard).
 
 ## 2. Arquitectura del flujo
 
@@ -146,19 +146,25 @@ para que el dashboard pueda agrupar por colegio, municipio y estrato sin consult
 
 ## 7. Dashboard
 
-El dashboard no consulta MySQL: lee `data/streaming/predicciones.jsonl`, que escribe el
-consumidor. Simula la reactividad con un pull periódico y fragmentos de Streamlit
-(detalle en `docs/dashboard.md`).
+El dashboard **operativo** (`streaming/dashboard/app.py`) no consulta MySQL: lee
+`data/streaming/predicciones.jsonl`, que escribe el consumidor. Simula la reactividad con
+un *pull* periódico usando `@st.fragment(run_every="3s")`, que refresca solo la parte viva
+sin recargar toda la página; el caché (`@st.cache_data(ttl=60)`) se usa solo en lo que casi
+no cambia. Muestra la lista de prioridad de colegios y municipios, alertas con umbral
+ajustable, una acción sugerida y apoyo analítico (% en riesgo total y por estrato). Corre en
+http://localhost:8501. No se confunde con el dashboard **analítico** (`dashboards/saber11_valle.html`),
+que sí consulta el DW y es de punto en el tiempo.
 
 ## 8. Cómo ejecutarlo
 
 ```bash
-docker compose up -d                                         # Airflow, MySQL, Kafka
-docker compose --profile streaming up -d consumidor           # consumidor escuchando
-docker compose --profile streaming run --rm productor         # publicar eventos (o ejecutar el DAG)
+docker compose up -d                                           # Airflow, MySQL, Kafka
+docker compose --profile streaming up -d consumidor dashboard  # consumidor + dashboard (http://localhost:8501)
+docker compose --profile streaming run --rm productor          # publicar eventos (o ejecutar el DAG)
 ```
 
-Para ver las predicciones: `data/streaming/predicciones.jsonl`.
+Para ver las predicciones: `data/streaming/predicciones.jsonl`. El dashboard queda en
+http://localhost:8501. Para una demo sin levantar el stack: `python streaming/dashboard/simular_stream.py`.
 
 ## 9. Limitaciones
 
@@ -168,3 +174,9 @@ Para ver las predicciones: `data/streaming/predicciones.jsonl`.
   repetidos, así que repetir el DAG no hace crecer el dashboard salvo que se aumente el límite.
 - El modelo solo usa el perfil del hogar y del colegio: indica probabilidad de riesgo, no causas.
 - Las variables socioeconómicas tienen cerca de 25 % de "No informa" en 2019 y 2025.
+- **`event_id` depende de `id_resultado`** (autoincremental de MySQL), igual que `models/ids_test.csv`.
+  Mientras no se vacíe y recargue el DW entre el entrenamiento y la demo, los ids son estables y
+  el productor publica exactamente el conjunto de prueba. Si se recarga el DW, los `id_resultado`
+  cambian: habría que reentrenar (regenerar `ids_test.csv`) antes de volver a publicar. Una versión
+  más robusta usaría `bk_estu_consecutivo` (la llave de negocio, estable) como identificador del
+  evento; se deja anotado como mejora futura.
