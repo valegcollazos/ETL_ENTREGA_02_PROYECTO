@@ -247,7 +247,7 @@ Hay dos cuadernos en `notebooks/`. Ambos leen **solo el Data Warehouse** (`saber
 
 Las funciones de apoyo (conexión al DW, pruebas estadísticas y gráficos) están en `notebooks/analisis_utils.py`. Todas las cifras del texto se calculan al ejecutar: si el DW cambia, los informes se actualizan solos.
 
-**Cuadernos de entregas anteriores.** Como pide la consigna, en `notebooks/` también se conservan los cuadernos de EDA de las entregas previas (EDA inicial por fuente de la entrega 1 y 2), además del cuaderno `notebooks/info_modelo_ml.ipynb` que documenta el entrenamiento y la evaluación del modelo (sección 9).
+**Cuadernos de entregas anteriores.** Como pide la consigna, en `notebooks/` se conserva el EDA de la **entrega 1** (`eda_entrega1.ipynb`, tomado del repositorio del equipo [ETL-project-icfes](https://github.com/LauMarinAlvis/ETL-project-icfes)). El EDA de la **entrega 2** evolucionó hasta el actual `eda_saber11.ipynb` (que ya lee el DW validado). Además, `notebooks/info_modelo_ml.ipynb` documenta el entrenamiento y la evaluación del modelo (sección 9).
 
 **Alcance.** Las pruebas formales cubren año/etapa, estrato, internet, computador, naturaleza del colegio y áreas. La educación de los padres y el NSE/INSE se exploran solo de forma descriptiva en el EDA (distribución por año y correlación del puntaje global con el INSE, r = 0,40, y con el NSE, r = 0,36); no tienen prueba de hipótesis ni brecha por año.
 
