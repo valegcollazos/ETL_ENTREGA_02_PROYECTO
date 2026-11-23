@@ -199,6 +199,22 @@ services:
         condition: service_healthy
     restart: "no"
 
+  # Dashboard operativo en tiempo real (Streamlit). Lee data/streaming/predicciones.jsonl
+  # que escribe el consumidor; NO consulta MySQL. Interfaz: http://localhost:8501
+  dashboard:
+    build: ./streaming/dashboard
+    profiles: ["streaming"]
+    environment:
+      PYTHONUNBUFFERED: "1"
+      RUTA_PREDICCIONES: /app/data/streaming/predicciones.jsonl
+    ports:
+      - "8501:8501"
+    volumes:
+      - ./streaming:/app/streaming:ro
+      - ./data:/app/data
+    working_dir: /app
+    restart: always
+
 volumes:
   postgres-db:
   mysql-data:
