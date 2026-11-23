@@ -1,6 +1,7 @@
 {
-  "creado_utc": "2026-11-18T07:47:45+00:00",
+  "creado_utc": "2026-11-22T23:41:50+00:00",
   "problema": "riesgo=1 si punt_global esta en el 25% mas bajo de su semestre (umbral calculado solo con train)",
+  "usa_historial_colegio": true,
   "columnas_entrada": [
     "semestre",
     "fami_estratovivienda",
@@ -12,13 +13,28 @@
     "cole_naturaleza",
     "cole_calendario",
     "cole_area_ubicacion",
-    "estu_mcpio_reside"
+    "estu_mcpio_reside",
+    "cole_cod_icfes"
   ],
+  "columnas_modelo": [
+    "semestre",
+    "fami_estratovivienda",
+    "fami_educacionpadre",
+    "fami_educacionmadre",
+    "fami_tieneinternet",
+    "fami_tienecomputador",
+    "fami_personashogar",
+    "cole_naturaleza",
+    "cole_calendario",
+    "cole_area_ubicacion",
+    "estu_mcpio_reside",
+    "colegio_riesgo_hist"
+  ],
+  "como_armar_la_fila": "Tomar las 11 columnas del evento; y agregar colegio_riesgo_hist = historial_colegios['colegios'].get(str(cole_cod_icfes), historial_colegios['media_global']) (vienen en metadata del .joblib). semestre debe ser entero.",
   "columnas_metadato_no_entrada": [
     "event_id",
     "event_ts",
     "periodo",
-    "cole_cod_icfes",
     "cole_nombre_establecimiento"
   ],
   "columnas_prohibidas": [
@@ -34,30 +50,30 @@
     "1": 246.0,
     "2": 210.0
   },
-  "umbral_decision": 0.4436602395358716,
+  "umbral_decision": 0.4877371100959496,
   "modelo": "regresion_logistica",
   "comparacion_validation": {
     "regresion_logistica": {
-      "validation_pr_auc": 0.4229503869704646,
-      "validation_roc_auc": 0.6815316363784737
+      "validation_pr_auc": 0.5275667296685421,
+      "validation_roc_auc": 0.75745281723936
     },
     "random_forest": {
-      "validation_pr_auc": 0.4191286726536769,
-      "validation_roc_auc": 0.6787409325804528
+      "validation_pr_auc": 0.5076230863626939,
+      "validation_roc_auc": 0.7517151808617486
     }
   },
   "metricas_test": {
-    "pr_auc": 0.4320913129522417,
-    "roc_auc": 0.6874015460315684,
-    "recall": 0.72988890376121,
-    "precision": 0.3417309017985837,
-    "f1": 0.46551135393546184,
-    "umbral_decision": 0.4436602395358716,
+    "pr_auc": 0.538816091746753,
+    "roc_auc": 0.7655742339586251,
+    "recall": 0.6818364342122875,
+    "precision": 0.43902439024390244,
+    "f1": 0.5341302296319598,
+    "umbral_decision": 0.4877371100959496,
     "matriz_confusion": {
-      "tn": 12017,
-      "fp": 10504,
-      "fn": 2018,
-      "tp": 5453
+      "tn": 16012,
+      "fp": 6509,
+      "fn": 2377,
+      "tp": 5094
     }
   },
   "linea_base": {
@@ -68,21 +84,23 @@
     "prevalencia_test_(PR-AUC_del_azar)": 0.24909975993598293
   },
   "importancia_permutacion_pr_auc": {
-    "estu_mcpio_reside": 0.06617453085833384,
-    "fami_educacionmadre": 0.044419646776412545,
-    "semestre": 0.023440889204332755,
-    "fami_educacionpadre": 0.021670400219248005,
-    "fami_estratovivienda": 0.01976362331283162,
-    "fami_personashogar": 0.011411461550301557,
-    "cole_calendario": 0.007111789999625677,
-    "cole_area_ubicacion": 0.006661211373041838,
-    "fami_tienecomputador": 0.004494204248320421,
-    "fami_tieneinternet": 0.0035624013456231154,
-    "cole_naturaleza": 0.0033832842529011495
+    "colegio_riesgo_hist": 0.23875245966983105,
+    "semestre": 0.021949442110825796,
+    "fami_educacionmadre": 0.02160489968584789,
+    "fami_estratovivienda": 0.014188450929138416,
+    "fami_educacionpadre": 0.011575912479719638,
+    "cole_calendario": 0.008908799535775058,
+    "estu_mcpio_reside": 0.003776014117781242,
+    "cole_area_ubicacion": 0.0016547392181133214,
+    "cole_naturaleza": 0.001538576160948472,
+    "fami_personashogar": 0.0006692084217702435,
+    "fami_tieneinternet": 0.0005887372095313426,
+    "fami_tienecomputador": -0.0005373704805975802
   },
   "n_train": 89975,
   "n_validation": 29992,
   "n_test": 29992,
+  "n_colegios_en_historial": 1756,
   "categorias_vistas": {
     "semestre": [
       1,
