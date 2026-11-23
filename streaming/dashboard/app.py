@@ -45,6 +45,17 @@ def catalogo_municipios() -> list[str]:
     return sorted(df["municipio"].dropna().unique().tolist())
 
 
+@st.cache_data(ttl=60)
+def info_fuente() -> tuple[bool, str]:
+    """Origen de los datos (stream real vs ejemplo) y versión del modelo. Casi no cambia."""
+    en_vivo = datos.RUTA_PREDICCIONES.exists()
+    df = datos.cargar_predicciones()
+    version = "—"
+    if not df.empty and df["model_version"].notna().any():
+        version = str(df["model_version"].dropna().iloc[-1])
+    return en_vivo, version
+
+
 # ------------------------------- Controles -------------------------------
 st.title("📡 Riesgo escolar en tiempo real · Saber 11 Valle del Cauca")
 st.caption(
@@ -72,7 +83,9 @@ with st.sidebar:
     municipios = catalogo_municipios()
     filtro_muni = st.multiselect("Filtrar municipios (opcional)", municipios, default=[])
     st.divider()
-    st.caption(f"Fuente: `{datos.ruta_en_uso()}`")
+    en_vivo, version = info_fuente()
+    st.caption("**Origen:** 🟢 Stream en vivo" if en_vivo else "**Origen:** 🟡 Datos de ejemplo")
+    st.caption(f"**Modelo:** riesgo estudiante · v{version}")
     st.caption("Se actualiza cada 3 s mientras el consumidor escribe predicciones.")
 
 
@@ -129,6 +142,9 @@ def panel_en_vivo():
             use_container_width=True, hide_index=True,
         )
 
+    st.caption(f"**▲** = por encima del umbral de alerta ({umbral_pct:.0f}% en riesgo); **·** = por debajo. "
+               "El símbolo acompaña al color rojo para no depender solo del color.")
+
     # ---- Apoyo analítico ----
     st.divider()
     a_izq, a_der = st.columns(2)
@@ -152,11 +168,15 @@ def panel_en_vivo():
 
 
 def _estilo_prioridad(tabla: pd.DataFrame, umbral_pct: float, cols_texto: list[str]):
-    """Resalta en rojo las filas que superan el umbral de alerta."""
+    """Marca las filas que superan el umbral de alerta con DOBLE señal (accesibilidad):
+    un símbolo ▲ en la columna de la izquierda (no depende del color, sirve para daltonismo)
+    y además el resaltado en rojo."""
     cols = cols_texto + ["casos", "en_riesgo", "pct_riesgo", "prob_media"]
     vista = tabla[cols].rename(columns={
         "casos": "Casos", "en_riesgo": "En riesgo", "pct_riesgo": "% riesgo", "prob_media": "Prob. media",
     })
+    # Señal textual (no-color): ▲ = por encima del umbral; · = por debajo.
+    vista.insert(0, "⚠", tabla["pct_riesgo"].apply(lambda p: "▲" if p > umbral_pct else "·"))
 
     def _resaltar(fila):
         color = "background-color: rgba(220,60,60,0.18)" if fila["% riesgo"] > umbral_pct else ""
