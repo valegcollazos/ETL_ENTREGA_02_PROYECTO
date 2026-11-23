@@ -11,14 +11,15 @@
     "cole_naturaleza": "No aplica",
     "cole_calendario": "No aplica",
     "cole_area_ubicacion": "No aplica",
-    "estu_mcpio_reside": "JAMUNDÍ"
+    "estu_mcpio_reside": "JAMUNDÍ",
+    "cole_cod_icfes": -1
   },
   "mensaje_prediccion_esperado": {
     "event_id": 54644,
     "model_id": "saber11-estudiante-en-riesgo",
-    "model_version": "1.0.0",
+    "model_version": "2.0.0",
     "prediction": 0,
     "prediction_label": "sin_riesgo",
-    "probability_riesgo": 0.3962
+    "probability_riesgo": 0.4385
   }
 }
