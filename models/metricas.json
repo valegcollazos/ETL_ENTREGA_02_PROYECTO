@@ -1,5 +1,5 @@
 {
-  "creado_utc": "2026-11-22T23:41:50+00:00",
+  "creado_utc": "2026-11-24T05:13:36+00:00",
   "problema": "riesgo=1 si punt_global esta en el 25% mas bajo de su semestre (umbral calculado solo con train)",
   "usa_historial_colegio": true,
   "columnas_entrada": [
@@ -54,10 +54,14 @@
   "modelo": "regresion_logistica",
   "comparacion_validation": {
     "regresion_logistica": {
+      "train_pr_auc": 0.534279446303653,
+      "train_roc_auc": 0.7620120175032079,
       "validation_pr_auc": 0.5275667296685421,
       "validation_roc_auc": 0.75745281723936
     },
     "random_forest": {
+      "train_pr_auc": 0.5317806714894407,
+      "train_roc_auc": 0.7633292817316272,
       "validation_pr_auc": 0.5076230863626939,
       "validation_roc_auc": 0.7517151808617486
     }
@@ -74,6 +78,20 @@
       "fp": 6509,
       "fn": 2377,
       "tp": 5094
+    }
+  },
+  "metricas_entrenamiento": {
+    "pr_auc": 0.5365969147613034,
+    "roc_auc": 0.7627751585578868,
+    "recall": 0.6737959020755722,
+    "precision": 0.4358687466379774,
+    "f1": 0.5293249193221756,
+    "umbral_decision": 0.4877371100959496,
+    "matriz_confusion": {
+      "tn": 63685,
+      "fp": 26218,
+      "fn": 9807,
+      "tp": 20257
     }
   },
   "linea_base": {
