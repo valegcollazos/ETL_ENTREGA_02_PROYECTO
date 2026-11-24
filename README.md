@@ -347,7 +347,9 @@ Modelo en estrella en MySQL (base `saber11_dw_e2`, script `sql/esquema_dw.sql`).
 
 ## 9. Modelo de Machine Learning (estudiante en riesgo)
 
-Script: `ml/entrenar_modelo.py`. Cuaderno de documentación: `notebooks/info_modelo_ml.ipynb`. Artefactos en `models/`.
+Script de entrenamiento: `ml/entrenar_modelo.py`. Cuaderno de documentación: `notebooks/info_modelo_ml.ipynb`. Artefactos en `models/`.
+
+Otros dos scripts completan el trabajo. `ml/probar_consumer.py` carga el modelo guardado y comprueba que el consumidor lo puede usar con un mensaje real. `ml/experimento_colegio.py` genera el experimento temporal que se cita en las limitaciones. Para reentrenar se necesita el Data Warehouse arriba y se corre `python ml/entrenar_modelo.py`.
 
 **Problema y target.** Clasificación binaria: `riesgo = 1` si el `punt_global` del estudiante queda en el **25 % más bajo de su semestre**. El umbral (percentil 25) se calcula **solo con el conjunto de entrenamiento** y por separado para cada semestre (p25 sem. 1 = 246; p25 sem. 2 = 210), para no mezclar la composición distinta de cada semestre. Predecirlo es útil porque permite priorizar apoyo antes de ver el resultado final.
 
@@ -366,11 +368,44 @@ Script: `ml/entrenar_modelo.py`. Cuaderno de documentación: `notebooks/info_mod
 | F1 | 0,53 |
 | Prevalencia (azar) | 0,249 |
 
+**Entrenamiento frente a prueba.** El script mide el modelo elegido también con los datos con los que se entrenó y guarda esas métricas en `metricas.json`, bajo `metricas_entrenamiento`. El informe las compara con las de prueba en la sección 4.1. Una brecha pequeña indica que el modelo generaliza y una grande, que memorizó. La misma comparación se hizo para los dos candidatos.
+
+| Métrica | Entrenamiento | Prueba | Brecha |
+|---|---|---|---|
+| PR-AUC | 0,537 | 0,539 | -0,002 |
+| ROC-AUC | 0,763 | 0,766 | -0,003 |
+| Recall | 0,674 | 0,682 | -0,008 |
+| Precisión | 0,436 | 0,439 | -0,003 |
+| F1 | 0,529 | 0,534 | -0,005 |
+
+| Candidato | PR-AUC en train | PR-AUC en validation | Brecha |
+|---|---|---|---|
+| Regresión logística, elegida | 0,534 | 0,528 | 0,007 |
+| Random forest | 0,532 | 0,508 | 0,024 |
+
+La brecha es prácticamente nula: en prueba el modelo rinde igual que con los datos con los que se entrenó, así que no hay sobreajuste. El random forest se aleja más entre train y validation, lo que respalda haber elegido la regresión logística. Que las dos cifras sean iguales y moderadas indica que el techo del modelo está en la información disponible y no en su complejidad. Para mejorarlo harían falta más variables y no un modelo más grande.
+
+**Decisiones del modelo y su justificación.**
+
+| Decisión | Por qué |
+|---|---|
+| Riesgo como el 25 % más bajo de cada semestre | Los semestres tienen distinto nivel de puntaje. Un solo corte marcaría de más a uno de los dos. El corte se calcula solo con train para que prueba no influya |
+| División 60, 20 y 20, estratificada por semestre | Train ajusta, validation elige modelo y umbral, y prueba se usa una sola vez al final |
+| Preprocesamiento dentro del Pipeline | El consumidor aplica exactamente lo mismo que se usó al entrenar, sin reescribirlo |
+| Regresión logística | Superó al random forest en PR-AUC de validation y se puede explicar a quien toma decisiones |
+| PR-AUC para elegir el modelo | Solo uno de cada cuatro estudiantes está en riesgo, y con clases desbalanceadas la exactitud engaña |
+| `class_weight="balanced"` | Sin él, el modelo tendería a no marcar a nadie. Tiene un costo: las probabilidades salen infladas |
+| Umbral de decisión de 0,488 | Se eligió maximizando F1 en validation y no se dejó en 0,5 |
+| Historial del colegio fuera de pliegue | Un estudiante no puede contribuir al historial que luego se usa para predecirlo |
+| Ningún puntaje como variable | El puntaje define el target, y usarlo sería una fuga |
+| Prueba evaluada una sola vez | Ajustar mirando prueba haría optimista la cifra final |
+
 **Artefactos serializados (`models/`).** `modelo_riesgo.joblib` (dict `{"model": Pipeline, "metadata": {...}}`), `metricas.json` (umbrales, versiones, métricas, importancias), `historial_colegios.json` (tabla colegio → riesgo histórico), `ids_test.csv` (los estudiantes del test, que el productor publica por defecto) y `ejemplo_mensaje.json`.
 
 **Limitaciones.**
 - El **historial del colegio domina** la importancia por permutación (0,24 frente a 0,02 de la siguiente variable): en la práctica el modelo predice sobre todo por el colegio, no por el perfil individual del estudiante.
 - Las métricas de arriba son de una **partición aleatoria**, donde el historial del colegio alcanza a "ver" compañeros del mismo año (algo optimista). El experimento temporal honesto (entrenar con 2019–2020 y probar con 2025, en `models/experimento_colegio.json`) baja a **PR-AUC ≈ 0,47 y ROC-AUC ≈ 0,74**: esa es la cifra más realista de cara a un uso futuro.
+- Las probabilidades salen **infladas** porque el modelo se entrena con `class_weight="balanced"`. El % en riesgo que marca el modelo sirve para ordenar colegios y municipios, no como frecuencia real. En Buenaventura el modelo marca 82 % frente a 49 % real. Con un corte de probabilidad en 0,70 se marca al 14 % de los estudiantes, con precisión de 60 % y recall de 34 %. Por eso el tablero deja el umbral de alerta ajustable.
 - Es un estudio observacional: el modelo indica **probabilidad** de riesgo para priorizar, no causas. Las variables socioeconómicas tienen cerca de 25 % de "No informa" en 2019 y 2025.
 
 ## 10. Streaming con Kafka
@@ -398,13 +433,42 @@ Documento completo: `docs/kafka_streaming.md`. Kafka corre en modo KRaft, un sol
 
 Código: `streaming/dashboard/app.py` (lógica de datos en `streaming/dashboard/datos.py`). Lee `data/streaming/predicciones.jsonl` que escribe el consumer; **no consulta MySQL** (eso lo hace el reporte estático). Interfaz: http://localhost:8501.
 
-**La decisión que apoya:** a qué colegios y municipios priorizar apoyo/refuerzo. Por eso es **operativo**, no solo analítico:
-- **Prioridad:** colegios y municipios ordenados por mayor % de estudiantes en riesgo (con un mínimo de casos ajustable).
-- **Alerta** visible cuando un colegio/municipio supera un umbral ajustable (y marca de estudiantes con probabilidad individual alta). Las filas en alerta se señalan con color **y** con un símbolo ▲, para no depender solo del color (accesibilidad / daltonismo).
-- **Acción sugerida** en texto ("Priorizar tutorías en estos N colegios…").
-- **Apoyo analítico:** contador de mensajes, % en riesgo total y % por estrato, últimas predicciones.
+**Estructura del tablero.** Está pensado para que cualquier persona entienda qué hace el sistema, qué resultados produce y cómo se comportan las predicciones. Tiene seis secciones:
 
-**Técnica.** `@st.fragment(run_every="3s")` refresca solo la parte viva sin recargar toda la página; `@st.cache_data(ttl=60)` se usa solo en lo que casi no cambia (catálogo de municipios del filtro). En lo que se actualiza en vivo no hay caché.
+1. **Resumen general:** predicciones generadas, cuántos estudiantes quedaron en riesgo y sin riesgo, la distribución de esas categorías y la última predicción recibida.
+2. **Dónde apoyar primero:** la parte operativa. Alerta cuando un colegio o municipio supera el umbral elegido, lista corta de los tres colegios y municipios donde apoyar primero, y listas de prioridad con estado Alerta, Vigilar o Normal. Un colegio que ya recibió apoyo se marca como atendido y sale de la lista.
+3. **Predicciones en tiempo real:** estudiantes acumulados por categoría, evolución del % en riesgo, distribución de la probabilidad con el umbral del modelo y % en riesgo por estrato.
+4. **Registro de mensajes:** los últimos mensajes con identificador del evento, fecha y hora, colegio, municipio, estrato, semestre, probabilidad, predicción y estado.
+5. **Interpretación de resultados:** qué significan las categorías, cómo se compara el % actual con lo que el modelo produjo en su prueba, los estratos y municipios de mayor riesgo, y la matriz de confusión con las métricas del modelo.
+6. **Monitoreo del streaming:** estado del flujo, mensajes procesados, tiempo desde el último mensaje, mensajes del último minuto, retraso mediano entre el envío y la predicción y el ritmo de llegada.
+
+La parte operativa va en segundo lugar a propósito: es la que responde a qué decisión sirve el tablero.
+
+Todo sale de lo que escribe el consumidor de Kafka. Los mensajes en vivo no traen el puntaje real, así que el acierto del modelo se muestra con los resultados de la prueba y no en directo. El flujo es una simulación: el productor reenvía estudiantes del conjunto de prueba, que el modelo no vio al entrenar, como si llegaran en tiempo real. El estado del flujo se deduce de la llegada de mensajes: es Activo si llegó uno en los últimos 30 segundos y Sin actividad si no.
+
+**Accesibilidad.** La paleta es azul y naranja, que se distinguen aunque no se vea el rojo y el verde. Las líneas de cada categoría usan trazo continuo y trazo discontinuo, los estados se escriben con palabra y no solo con color, y las barras llevan su valor. El tablero no fija colores de fondo, así que se ve bien en modo claro y en modo oscuro.
+
+**Decisiones del tablero y su justificación.**
+
+| Decisión | Por qué |
+|---|---|
+| Leer `predicciones.jsonl` y no MySQL | Separa el tiempo real del Data Warehouse. El consumidor ya escribe todo lo que el tablero necesita |
+| `@st.fragment` con `run_every` de 3 s | Streamlit vuelve a ejecutar el script entero en cada interacción. El fragmento refresca solo la parte viva, sin recargar la página ni los controles |
+| Sin caché en lo que cambia en vivo | Un caché esconde los datos nuevos hasta que vence |
+| `@st.cache_data` con ttl de 60 s en las métricas del modelo | Se guardan al entrenar y casi no cambian, así que no vale la pena releerlas cada 3 s |
+| `st.session_state` para los colegios atendidos | Cada refresco vuelve a ejecutar el fragmento. Sin estado, la marca de atendido se perdería a los 3 segundos |
+| `st.session_state` para las alertas nuevas | Saber qué colegios entraron en alerta exige recordar cuáles lo estaban en el refresco anterior |
+| Umbral de alerta ajustable | El modelo marca más riesgo del real. Quien decide elige cuántos colegios puede cubrir con su capacidad de apoyo |
+| Mínimo de estudiantes por colegio | Un colegio con uno o dos casos llegaría al 100 % por azar |
+| Estado escrito con palabra y paleta azul y naranja | Hay personas que no distinguen el rojo del verde, así que el color solo acompaña |
+| Sin colores de fondo fijos | No todas las personas usan el navegador en modo oscuro, y así el tablero funciona en los dos modos |
+| Estado del streaming deducido de los mensajes | El tablero no se conecta a Kafka. Que sigan llegando predicciones es la prueba de que el consumidor está activo |
+| Ordenar por % en riesgo | Es el criterio que responde a dónde apoyar primero |
+| Sin colegio fuera de la lista de colegios | No hay una institución a la que dirigir el apoyo |
+
+**Técnica.** El refresco usa `@st.fragment(run_every="3s")` y el caché de 60 s se aplica solo a las métricas del modelo. En lo que se actualiza en vivo no hay caché.
+
+**Lo que el tablero deja por fuera.** Los estudiantes sin colegio, con `cole_cod_icfes` igual a `-1`, no entran en la lista de colegios porque no hay una institución a la que dar apoyo. Siguen contando en el total y en los municipios.
 
 **Simulador de demo.** `streaming/dashboard/simular_stream.py` agrega predicciones poco a poco (tomándolas de `streaming/ejemplo_predicciones.jsonl`) para mostrar el tablero actualizándose en vivo sin levantar todo el stack. Es solo una ayuda de demostración; el dashboard real se alimenta del consumer de Kafka.
 
@@ -460,10 +524,22 @@ docker compose --profile streaming up -d consumidor dashboard   # consumer + das
 docker compose --profile streaming run --rm productor           # publica eventos a Kafka
 ```
 
-- El **consumer** carga el modelo y escribe `data/streaming/predicciones.jsonl`.
-- El **dashboard operativo** queda en http://localhost:8501 (se actualiza cada 3 s).
-- (Opcional) Reentrenar el modelo: `python ml/entrenar_modelo.py` (con el DW arriba).
-- (Opcional) Demo sin levantar el stack: `python streaming/dashboard/simular_stream.py --delay 0.5`.
+- El **consumer** carga el modelo y escribe `data/streaming/predicciones.jsonl`. En su log debe aparecer `version=2.0.0`.
+- El **dashboard operativo** queda en http://localhost:8501 y se actualiza cada 3 s. Antes de recibir datos muestra el ejemplo del repositorio.
+- Para una demo con más datos: `docker compose --profile streaming run --rm productor python streaming/productor.py --limit 5000 --delay 0.05`.
+- Reentrenar el modelo, con el DW arriba: `python ml/entrenar_modelo.py`.
+- Demo sin levantar el stack: `python streaming/dashboard/simular_stream.py --delay 0.5`.
+
+**Repetir la demo desde cero.** El consumer descarta los `event_id` que ya están en `predicciones.jsonl`. Si se vuelve a correr el productor sin limpiar, el tablero no cambia. Para empezar de nuevo:
+
+```powershell
+docker compose --profile streaming stop consumidor
+del data\streaming\predicciones.jsonl
+docker compose --profile streaming up -d consumidor
+docker compose --profile streaming run --rm productor python streaming/productor.py --limit 5000 --delay 0.05
+```
+
+Para apagar todo se usa `docker compose --profile streaming down`. No se agrega `-v` porque borraría los datos de MySQL y Postgres.
 
 Pruebas unitarias (limpieza, rama CSV y funciones estadísticas del informe): `pytest -q` desde la raíz del proyecto.
 

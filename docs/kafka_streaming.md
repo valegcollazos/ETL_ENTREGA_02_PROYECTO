@@ -127,7 +127,7 @@ Ejemplo:
 {
   "event_id": 9483,
   "model_id": "saber11-estudiante-en-riesgo",
-  "model_version": "1.0.0",
+  "model_version": "2.0.0",
   "prediction": 1,
   "prediction_label": "en_riesgo",
   "probability_riesgo": 0.6487,

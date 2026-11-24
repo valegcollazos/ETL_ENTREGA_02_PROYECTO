@@ -235,8 +235,12 @@ def main(csv: str | None, con_hist: bool) -> int:
     }
     comparacion = {}
     for nombre, fabrica in candidatos.items():
-        p = construir_pipeline(fabrica(), con_hist).fit(X_tr, y_tr).predict_proba(X_va)[:, 1]
-        comparacion[nombre] = {"validation_pr_auc": float(average_precision_score(y_va, p)),
+        cand = construir_pipeline(fabrica(), con_hist).fit(X_tr, y_tr)
+        p = cand.predict_proba(X_va)[:, 1]
+        p_tr = cand.predict_proba(X_tr)[:, 1]
+        comparacion[nombre] = {"train_pr_auc": float(average_precision_score(y_tr, p_tr)),
+                               "train_roc_auc": float(roc_auc_score(y_tr, p_tr)),
+                               "validation_pr_auc": float(average_precision_score(y_va, p)),
                                "validation_roc_auc": float(roc_auc_score(y_va, p))}
         print(f"  {nombre}: {comparacion[nombre]}")
     elegido = max(comparacion, key=lambda k: comparacion[k]["validation_pr_auc"])
@@ -260,9 +264,12 @@ def main(csv: str | None, con_hist: bool) -> int:
     pipeline = construir_pipeline(candidatos[elegido](), con_hist).fit(X_dev, y_dev)
     prob_te = pipeline.predict_proba(X_te)[:, 1]
     res_modelo = metricas(y_te, prob_te, umbral)
+    # Mismo modelo evaluado con los datos con los que se entrenó, para comparar contra test.
+    res_train = metricas(y_dev, pipeline.predict_proba(X_dev)[:, 1], umbral)
     res_base = {"siempre_no": {"recall": 0.0, "precision": 0.0},
                 "prevalencia_test_(PR-AUC_del_azar)": float(y_te.mean())}
     print("Metricas test:", json.dumps(res_modelo, indent=2))
+    print("PR-AUC  entrenamiento={:.3f}  test={:.3f}".format(res_train["pr_auc"], res_modelo["pr_auc"]))
 
     # 6) Importancia por permutacion (para el informe)
     from sklearn.inspection import permutation_importance
@@ -324,6 +331,7 @@ def main(csv: str | None, con_hist: bool) -> int:
         "modelo": elegido,
         "comparacion_validation": comparacion,
         "metricas_test": res_modelo,
+        "metricas_entrenamiento": res_train,
         "linea_base": res_base,
         "importancia_permutacion_pr_auc": importancias,
         "n_train": int(len(train)), "n_validation": int(len(val)), "n_test": int(len(test)),

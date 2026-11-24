@@ -211,6 +211,7 @@ services:
       - "8501:8501"
     volumes:
       - ./streaming:/app/streaming:ro
+      - ./models:/app/models:ro
       - ./data:/app/data
     working_dir: /app
     restart: always
